@@ -24,30 +24,15 @@ export async function getTVsAction() {
             tvs.map(async (tv) => {
                 let currentRental = null;
 
-                // 1. Check TV status (online/offline and power state)
-                // We catch errors here to avoid failing the whole list if one TV is unreachable
-                let tvStatus = { isPoweredOn: false, isReachable: false };
-                try {
-                    tvStatus = await getTVStatus(tv.ipAddress);
-                } catch (e) {
-                    console.error(`Failed to check status for ${tv.name}:`, e);
-                }
+                // 1. Use Status from DB (Synced by Bridge)
+                const isOnline = tv.isOnline;
+                const isReachable = tv.isReachable;
 
-                const isOnline = tvStatus.isPoweredOn;
-                const isReachable = tvStatus.isReachable;
-
-                // Update status in database if different
-                if (tv.isOnline !== isOnline) {
-                    await db.collection('tvs').updateOne(
-                        { _id: tv._id },
-                        {
-                            $set: {
-                                isOnline,
-                                lastChecked: new Date(),
-                            },
-                        }
-                    );
-                }
+                // Skip VPS-side ADB check
+                // let tvStatus = { isPoweredOn: false, isReachable: false };
+                // try {
+                //     tvStatus = await getTVStatus(tv.ipAddress);
+                // } catch (e) { ... }
 
                 // 2. Check active rental
                 if (tv.currentRentalId) {
