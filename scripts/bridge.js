@@ -96,17 +96,33 @@ async function fetchTVs() {
 
 async function checkTVStatus(ip) {
     return new Promise((resolve) => {
-        exec(`adb connect ${ip}`, (error) => {
+        console.log(`Checking status for ${ip}...`);
+        exec(`adb connect ${ip}`, (error, stdout, stderr) => {
             if (error) {
+                console.log(`[${ip}] ADB Connect Error: ${error.message}`);
                 // Connection failed (maybe offline)
                 return resolve({ ip, isOnline: false, isReachable: false });
             }
+            // console.log(`[${ip}] ADB Connect Output: ${stdout.trim()}`);
 
             // Check power state
-            exec(`adb -s ${ip}:5555 shell dumpsys power | grep mWakefulness`, (err, out) => {
-                const isOnline = out && out.includes('mWakefulness=Awake');
+            // Note: We remove '| grep' so we don't rely on local shell (Windows cmd doesn't have grep)
+            // We parse the output in JS instead.
+            exec(`adb -s ${ip}:5555 shell dumpsys power`, (err, out, serr) => {
+                if (err) {
+                    console.log(`[${ip}] Dumpsys Error: ${err.message}`);
+                    return resolve({ ip, isOnline: false, isReachable: true });
+                }
+
+                const output = out ? out.toString() : '';
+                // Look for mWakefulness=Awake
+                const isOnline = output.match(/mWakefulness=Awake/);
+
+                // Debug log (optional, maybe shorten it)
+                // console.log(`[${ip}] Power Output length: ${output.length}`);
+                console.log(`[${ip}] Status: ${isOnline ? 'ONLINE' : 'OFFLINE'}`);
+
                 resolve({ ip, isOnline: !!isOnline, isReachable: true });
-                // Optional: disconnect to save resources, or keep open
             });
         });
     });

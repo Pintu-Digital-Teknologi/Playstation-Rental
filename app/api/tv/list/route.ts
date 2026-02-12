@@ -53,25 +53,13 @@ export async function GET(request: NextRequest) {
       tvs.map(async (tv) => {
         let currentRental = null;
 
-        // 1. Cek status TV (online/offline dan power state)
-        const tvStatus = await getTVStatus(tv.ipAddress);
+        // 1. Use Status from DB (Synced by Bridge)
+        const isOnline = tv.isOnline;
+        const isReachable = tv.isReachable;
 
-        // Update isOnline based on actual power state
-        const isOnline = tvStatus.isPoweredOn;
-        const isReachable = tvStatus.isReachable;
-
-        // Update status di database jika berbeda
-        if (tv.isOnline !== isOnline) {
-          await db.collection("tvs").updateOne(
-            { _id: tv._id },
-            {
-              $set: {
-                isOnline,
-                lastChecked: new Date(),
-              },
-            },
-          );
-        }
+        // Skip direct ADB check from VPS
+        // const tvStatus = await getTVStatus(tv.ipAddress);
+        // ... update logic removed ...
 
         // 2. Cek rental yang sedang aktif
         if (tv.currentRentalId) {

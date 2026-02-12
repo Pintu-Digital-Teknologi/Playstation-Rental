@@ -18,22 +18,12 @@ export async function GET(request: NextRequest) {
         let accessKey = null;
         let status = tv.status;
 
-        // Check actual TV power status
-        const tvStatus = await getTVStatus(tv.ipAddress);
-        const isOnline = tvStatus.isPoweredOn;
+        // 1. Use Status from DB (Synced by Bridge)
+        const isOnline = tv.isOnline; // Trust the DB
 
-        // Update database jika status berubah
-        if (tv.isOnline !== isOnline) {
-          await db.collection("tvs").updateOne(
-            { _id: tv._id },
-            {
-              $set: {
-                isOnline,
-                lastChecked: new Date(),
-              },
-            },
-          );
-        }
+        // Skip VPS-side ADB check
+        // const tvStatus = await getTVStatus(tv.ipAddress);
+        // ... update removed ...
 
         // Override status jika TV mati
         if (!isOnline && status !== "maintenance") {
