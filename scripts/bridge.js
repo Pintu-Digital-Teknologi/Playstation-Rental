@@ -29,8 +29,12 @@ const args = process.argv.slice(2).reduce((acc, arg) => {
 }, {});
 
 // Konfigurasi
+// Konfigurasi
 const MQTT_BROKER = process.env.MQTT_BROKER || "mqtt://broker.hivemq.com";
 const BRIDGE_API_KEY = process.env.BRIDGE_API_KEY || args.key;
+// Allow overriding API URL (default to localhost for dev, but user likely needs to set this)
+const API_URL = process.env.API_URL || args.api || "http://localhost:3000";
+// Note: User running this script against VPS needs to set API_URL=https://vps-domain.com
 
 if (!BRIDGE_API_KEY) {
     console.error("ERROR: BRIDGE_API_KEY is required!");
@@ -44,6 +48,7 @@ console.log(`Starting Bridge...`);
 console.log(`Broker: ${MQTT_BROKER}`);
 console.log(`Topic: ${MQTT_TOPIC}`);
 console.log(`API Key: ${BRIDGE_API_KEY}`);
+console.log(`API URL: ${API_URL}`);
 
 const client = mqtt.connect(MQTT_BROKER, {
     reconnectPeriod: 1000,
@@ -73,35 +78,91 @@ client.on('message', (topic, message) => {
     }
 });
 
+// --- Polling & Sync Logic ---
+
+async function fetchTVs() {
+    try {
+        const res = await fetch(`${API_URL}/api/tv/list`, {
+            headers: { 'x-api-key': BRIDGE_API_KEY }
+        });
+        if (!res.ok) throw new Error(`API Error: ${res.statusText}`);
+        const data = await res.json();
+        return data.tvs || [];
+    } catch (err) {
+        console.error('Failed to fetch TVs:', err.message);
+        return [];
+    }
+}
+
+async function checkTVStatus(ip) {
+    return new Promise((resolve) => {
+        exec(`adb connect ${ip}`, (error) => {
+            if (error) {
+                // Connection failed (maybe offline)
+                return resolve({ ip, isOnline: false, isReachable: false });
+            }
+
+            // Check power state
+            exec(`adb -s ${ip}:5555 shell dumpsys power | grep mWakefulness`, (err, out) => {
+                const isOnline = out && out.includes('mWakefulness=Awake');
+                resolve({ ip, isOnline: !!isOnline, isReachable: true });
+                // Optional: disconnect to save resources, or keep open
+            });
+        });
+    });
+}
+
+async function syncStatus() {
+    console.log('Syncing status...');
+    const tvs = await fetchTVs();
+    if (tvs.length === 0) return;
+
+    const statuses = await Promise.all(tvs.map(tv => checkTVStatus(tv.ipAddress)));
+
+    try {
+        const res = await fetch(`${API_URL}/api/tv/bridge-sync`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': BRIDGE_API_KEY
+            },
+            body: JSON.stringify({ statuses })
+        });
+
+        if (res.ok) {
+            console.log(`Synced ${statuses.length} TVs successfully.`);
+        } else {
+            console.error(`Sync failed: ${res.status} ${res.statusText}`);
+        }
+    } catch (err) {
+        console.error('Sync error:', err.message);
+    }
+}
+
+// Start polling loop (every 10 seconds)
+setInterval(syncStatus, 10000);
+// Initial sync
+syncStatus();
+
+
 function turnOffTV(ip) {
     console.log(`Processing OFF for ${ip}...`);
 
-    // 1. Connect ADB
     exec(`adb connect ${ip}`, (error, stdout, stderr) => {
         if (error) {
             console.error(`ADB Connect Error: ${error.message}`);
-            // Lanjut mencoba meski error, kadang adb sudah connect tapi return error code
         }
 
-        // 2. Cek status power
-        // Kita gunakan dumpsys power untuk melihat mWakefulness
         exec(`adb -s ${ip}:5555 shell dumpsys power | grep mWakefulness`, (err, out, serr) => {
             const isAwake = out && out.includes('mWakefulness=Awake');
 
             if (isAwake) {
                 console.log(`TV ${ip} is Awake. Sending POWER button...`);
-                // 3. Kirim tombol Power (KeyCode 26) atau Sleep (223)
-                // Keycode 26 = Power Toggle
-                // Keycode 223 = Sleep
                 exec(`adb -s ${ip}:5555 shell input keyevent 223`, (e, o, s) => {
                     if (e) {
-                        // Fallback ke Power Toggle jika Sleep tidak jalan
                         exec(`adb -s ${ip}:5555 shell input keyevent 26`);
                     }
                     console.log(`Sent OFF command to ${ip}`);
-
-                    // Disconnect untuk cleanup (opsional)
-                    // exec(`adb disconnect ${ip}`); 
                 });
             } else {
                 console.log(`TV ${ip} is already Asleep/Dozing. No action taken.`);

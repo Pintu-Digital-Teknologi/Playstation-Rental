@@ -9,12 +9,43 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
+    const apiKey = request.headers.get("x-api-key");
+    const db = await getDatabase();
+
+    // 1. API Key Authentication (for Bridge)
+    if (apiKey) {
+      const license = await db.collection("licenses").findOne({
+        key: apiKey,
+        status: "active",
+        expiresAt: { $gt: new Date() },
+      });
+
+      if (license) {
+        // Update lastUsedAt
+        await db
+          .collection("licenses")
+          .updateOne({ _id: license._id }, { $set: { lastUsedAt: new Date() } });
+
+        // Just return the list of TVs (Bridge will check status)
+        const tvs = await db.collection("tvs").find({}).toArray();
+        return NextResponse.json({
+          tvs: tvs.map(tv => ({
+            ...tv,
+            _id: tv._id.toString(),
+            currentRentalId: tv.currentRentalId?.toString(),
+          }))
+        });
+      }
+      return NextResponse.json({ error: "Invalid API Key" }, { status: 401 });
+    }
+
+    // 2. Admin Session Authentication (for Dashboard)
     const admin = await getAdminFromSession();
     if (!admin) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const db = await getDatabase();
+    // const db = await getDatabase(); // Already defined above
     const tvs = await db.collection("tvs").find({}).toArray();
 
     // Enrich with current rental info and check for expiration
@@ -144,14 +175,14 @@ export async function GET(request: NextRequest) {
             : undefined,
           currentRental: currentRental
             ? {
-                ...currentRental,
-                _id: currentRental._id
-                  ? currentRental._id.toString()
-                  : undefined,
-                tvId: currentRental.tvId
-                  ? currentRental.tvId.toString()
-                  : undefined,
-              }
+              ...currentRental,
+              _id: currentRental._id
+                ? currentRental._id.toString()
+                : undefined,
+              tvId: currentRental.tvId
+                ? currentRental.tvId.toString()
+                : undefined,
+            }
             : null,
           isOnline,
           isReachable,
