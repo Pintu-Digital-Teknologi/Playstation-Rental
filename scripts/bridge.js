@@ -65,18 +65,7 @@ client.on('connect', () => {
     });
 });
 
-client.on('message', (topic, message) => {
-    try {
-        const payload = JSON.parse(message.toString());
-        console.log('Received:', payload);
 
-        if (payload.ip && payload.action === 'OFF') {
-            turnOffTV(payload.ip);
-        }
-    } catch (e) {
-        console.error('Failed to parse message:', e);
-    }
-});
 
 // --- Polling & Sync Logic ---
 
@@ -155,34 +144,73 @@ async function syncStatus() {
     }
 }
 
+client.on('message', (topic, message) => {
+    try {
+        const payload = JSON.parse(message.toString());
+        console.log('Received Command:', payload);
+
+        if (payload.ip && payload.action) {
+            executeCommand(payload.ip, payload.action);
+        }
+    } catch (e) {
+        console.error('Failed to parse message:', e);
+    }
+});
+
 // Start polling loop (every 10 seconds)
 setInterval(syncStatus, 10000);
 // Initial sync
 syncStatus();
 
 
-function turnOffTV(ip) {
-    console.log(`Processing OFF for ${ip}...`);
+function executeCommand(ip, action) {
+    console.log(`Executing ${action} on ${ip}...`);
 
-    exec(`adb connect ${ip}`, (error, stdout, stderr) => {
-        if (error) {
-            console.error(`ADB Connect Error: ${error.message}`);
+    exec(`adb connect ${ip}`, (error) => {
+        if (error) console.log(`[${ip}] Connect Error: ${error.message}`);
+
+        let adbCmd = '';
+        switch (action) {
+            case 'POWER_OFF':
+            case 'OFF':
+                // SLEEP (223) or POWER (26)
+                adbCmd = 'input keyevent 223';
+                break;
+            case 'POWER_ON':
+            case 'ON':
+                // WAKEUP (224)
+                adbCmd = 'input keyevent 224';
+                break;
+            case 'VOLUME_UP':
+                adbCmd = 'input keyevent 24';
+                break;
+            case 'VOLUME_DOWN':
+                adbCmd = 'input keyevent 25';
+                break;
+            case 'BACK':
+                adbCmd = 'input keyevent 4';
+                break;
+            case 'HOME':
+                adbCmd = 'input keyevent 3';
+                break;
+            default:
+                console.log(`Unknown action: ${action}`);
+                return;
         }
 
-        exec(`adb -s ${ip}:5555 shell dumpsys power | grep mWakefulness`, (err, out, serr) => {
-            const isAwake = out && out.includes('mWakefulness=Awake');
-
-            if (isAwake) {
-                console.log(`TV ${ip} is Awake. Sending POWER button...`);
-                exec(`adb -s ${ip}:5555 shell input keyevent 223`, (e, o, s) => {
-                    if (e) {
+        if (adbCmd) {
+            exec(`adb -s ${ip}:5555 shell ${adbCmd}`, (e, o, s) => {
+                if (e) {
+                    console.error(`[${ip}] Command Failed: ${e.message}`);
+                    // Fallback for Power Off
+                    if (action === 'POWER_OFF' || action === 'OFF') {
+                        console.log(`[${ip}] Retrying Power Toggle...`);
                         exec(`adb -s ${ip}:5555 shell input keyevent 26`);
                     }
-                    console.log(`Sent OFF command to ${ip}`);
-                });
-            } else {
-                console.log(`TV ${ip} is already Asleep/Dozing. No action taken.`);
-            }
-        });
+                } else {
+                    console.log(`[${ip}] Executed ${action}`);
+                }
+            });
+        }
     });
 }

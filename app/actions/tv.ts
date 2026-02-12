@@ -1,5 +1,6 @@
 'use server';
 
+import { publishTVAction } from '@/lib/mqtt';
 import { getDatabase } from '@/lib/db';
 import { getAdminFromSession, verifySessionDebug } from '@/lib/auth';
 import { ObjectId } from 'mongodb';
@@ -16,7 +17,7 @@ export async function getTVsAction() {
         }
 
         const db = await getDatabase();
-        const tvs = await db.collection('tvs').find({}).toArray();
+        const tvs = await db.collection<TVUnit>('tvs').find({}).toArray();
 
         // Enrich with current rental info and check for expiration
         // Use Promise.all to handle async status checks
@@ -25,14 +26,29 @@ export async function getTVsAction() {
                 let currentRental = null;
 
                 // 1. Use Status from DB (Synced by Bridge)
-                const isOnline = tv.isOnline;
-                const isReachable = tv.isReachable;
+                let isOnline = tv.isOnline;
+                let isReachable = tv.isReachable;
 
-                // Skip VPS-side ADB check
-                // let tvStatus = { isPoweredOn: false, isReachable: false };
+                // Liveness Check: If bridge hasn't synced in > 30s, assume offline
+                if (tv.lastChecked) {
+                    const lastCheckedTime = new Date(tv.lastChecked).getTime();
+                    const now = new Date().getTime();
+                    if (now - lastCheckedTime > 30000) { // 30 seconds threshold
+                        isOnline = false;
+                        isReachable = false;
+                    }
+                } else {
+                    // New TV or never checked
+                    isOnline = false;
+                    isReachable = false;
+                }
+
+                // Skip VPS-side ADB check (Bridge handles this)
                 // try {
-                //     tvStatus = await getTVStatus(tv.ipAddress);
-                // } catch (e) { ... }
+                //     const tvStatus = await getTVStatus(tv.ipAddress);
+                // } catch (e) {
+                //     console.error(`Failed to check status for ${tv.name}:`, e);
+                // }
 
                 // 2. Check active rental
                 if (tv.currentRentalId) {
@@ -56,7 +72,7 @@ export async function getTVsAction() {
                             if (now > endTime) {
                                 // Rental Expired Logic
                                 await db.collection('rentals').updateOne(
-                                    { _id: currentRental._id },
+                                    { _id: new ObjectId(currentRental._id) },
                                     { $set: { status: 'completed', endTime, updatedAt: new Date() } }
                                 );
 
@@ -68,9 +84,9 @@ export async function getTVsAction() {
                                     }
                                 );
 
-                                // Attempt power off
+                                // Attempt power off via MQTT if online
                                 if (isOnline) {
-                                    sendCommandToTV(tv.ipAddress, 'POWER_OFF').catch(err =>
+                                    publishTVAction(tv.ipAddress, 'POWER_OFF').catch(err =>
                                         console.error(`Failed to auto-power off ${tv.name}:`, err)
                                     );
                                 }
@@ -108,7 +124,7 @@ export async function getTVsAction() {
                     } : null,
                     isOnline,
                     isReachable,
-                } as any;
+                };
             })
         );
 
@@ -191,20 +207,20 @@ export async function controlTVAction(tvId: string, action: string, extraData?: 
 
         if (!tv) return { error: 'TV not found' };
 
-        // Handle specific actions
-        // In a real implementation this would call `sendCommandToTV` 
-        // passing the appropriate command string based on `action`
+        // Handle specific actions using MQTT
         let command = '';
         switch (action) {
             case 'power-on': command = 'POWER_ON'; break;
             case 'power-off': command = 'POWER_OFF'; break;
-            case 'volume-up': command = 'VOL_UP'; break;
-            case 'volume-down': command = 'VOL_DOWN'; break;
-            // set-timer etc would need custom logic or message
+            case 'volume-up': command = 'VOLUME_UP'; break;
+            case 'volume-down': command = 'VOLUME_DOWN'; break;
+            case 'back': command = 'BACK'; break;
+            case 'home': command = 'HOME'; break;
         }
 
         if (command) {
-            await sendCommandToTV(tv.ipAddress, command as any);
+            // Use MQTT to publish command to bridge
+            await publishTVAction(tv.ipAddress, command as any);
         }
 
         // Special handling for timer setting in DB if needed (omitted for brevity unless requested)
@@ -216,6 +232,7 @@ export async function controlTVAction(tvId: string, action: string, extraData?: 
         return { error: 'Failed to execute command' };
     }
 }
+
 // --- Update TV Action ---
 export async function updateTVAction(tvId: string, formData: FormData) {
     try {

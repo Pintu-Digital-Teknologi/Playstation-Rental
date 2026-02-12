@@ -28,7 +28,7 @@ function getClient() {
     return client;
 }
 
-export type TVAction = "OFF" | "ON";
+export type TVAction = "POWER_OFF" | "POWER_ON" | "VOLUME_UP" | "VOLUME_DOWN" | "BACK" | "HOME" | "OFF" | "ON";
 
 /**
  * Publish perintah ke Broker MQTT agar diambil oleh Local Bridge
