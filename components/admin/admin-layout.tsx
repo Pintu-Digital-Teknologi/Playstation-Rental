@@ -57,7 +57,7 @@ export function AdminLayout({ children, user }: AdminLayoutProps) {
     }
 
     try {
-      const res = await fetch("/api/shifts/active");
+      const res = await fetch("/api/shift/active");
       if (res.ok) {
         const data = await res.json();
 
@@ -90,15 +90,15 @@ export function AdminLayout({ children, user }: AdminLayoutProps) {
           setHasActiveShift(false);
           setActiveShiftRole(null);
 
-          // No active shift -> Redirect to Shifts page to start one
-          // Exception: We are already on shifts page
-          if (pathname !== "/admin/shifts") {
+          // No active shift -> Redirect to Shift page to start one
+          // Exception: We are already on shift page
+          if (pathname !== "/admin/shift") {
             toast({
               title: "Shift Required",
               description: "You must start a shift to access this page.",
               variant: "destructive",
             });
-            router.push("/admin/shifts");
+            router.push("/admin/shift");
             setIsChecking(false);
             return;
           }
@@ -138,7 +138,7 @@ export function AdminLayout({ children, user }: AdminLayoutProps) {
     { href: "/admin/rentals", label: "Rentals", icon: BarChart3 },
     { href: "/admin/makanan", label: "Menu / Add-ons", icon: Utensils },
     { href: "/admin/payments", label: "Payments", icon: DollarSign },
-    { href: "/admin/shifts", label: "Manajemen Kasir", icon: Clock },
+    { href: "/admin/shift", label: "Manajemen Kasir", icon: Clock },
     { href: "/admin/users", label: "User Manajemen", icon: User },
     { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
     { href: "/status", label: "Status", icon: Clock },
@@ -162,7 +162,7 @@ export function AdminLayout({ children, user }: AdminLayoutProps) {
           const Icon = item.icon;
 
           // Determine effective role: Active Shift Operator takes precedence
-          // If no shift active, we fall back to userRole, but user is likely restricted to /shifts anyway
+          // If no shift active, we fall back to userRole, but user is likely restricted to /shift anyway
           const effectiveRole = activeShiftRole || userRole;
 
           // Hide restricted items if not admin
@@ -238,7 +238,7 @@ export function AdminLayout({ children, user }: AdminLayoutProps) {
       {/* Main Content - Berikan margin-left (ml-64) agar tidak tertutup sidebar fixed */}
       <main className="flex-1 md:ml-64 pt-16 md:pt-0">
         <UserProvider user={user}>
-          {isChecking && pathname !== "/admin/shifts" && pathname !== "/" ? (
+          {isChecking && pathname !== "/admin/shift" && pathname !== "/" ? (
             <div className="flex h-screen items-center justify-center">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
