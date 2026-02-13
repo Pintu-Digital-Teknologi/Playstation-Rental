@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDatabase } from "@/lib/db";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request: NextRequest) {
   try {
     const db = await getDatabase();
@@ -24,15 +26,6 @@ export async function GET(request: NextRequest) {
         operatorRole = operator.role;
       }
     }
-
-    // Improve: Aggregate payments/rentals for this shift to get the report data
-    // "Laporan aktif berisi laporan data waktu mulai, waktu selesai, Unit atau nama tv, Metode pembayaran dan total biaya."
-    // We need to join payments with rentals -> tvs
-
-    // Simplification: We query payments with shiftId = activeShift._id
-    // But since I might not have updated payment creation yet, this might be empty.
-    // I will try to fetch payments that have shiftId OR (if none) maybe recent payments?
-    // Proper way: Payments must have shiftId. I will update payment logic later if needed.
 
     const transactions = await db
       .collection("payments")

@@ -80,6 +80,19 @@ export async function POST(request: NextRequest) {
       if (activeShift) {
         updateData.shiftId = activeShift._id;
         updateData.cashierName = activeShift.operatorName; // Record the active cashier
+
+        // Update Shift Totals ONLY if this is a new payment (prevents double counting)
+        if (payment.status !== "paid") {
+          await db.collection("shifts").updateOne(
+            { _id: activeShift._id },
+            {
+              $inc: {
+                totalTransactions: 1,
+                totalRevenue: payment.amount || 0, // Use updated amount if possible or existing
+              },
+            },
+          );
+        }
       }
     }
 

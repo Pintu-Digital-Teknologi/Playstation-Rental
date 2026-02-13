@@ -117,7 +117,7 @@ export default function ShiftManagementPage() {
   };
 
   const fetchActiveShift = async () => {
-    const res = await fetch("/api/shifts/active");
+    const res = await fetch("/api/shift/active");
     if (res.ok) {
       const data = await res.json();
       setActiveShift(data); // data is Shift object or null
@@ -125,7 +125,7 @@ export default function ShiftManagementPage() {
   };
 
   const fetchHistory = async () => {
-    const res = await fetch("/api/shifts");
+    const res = await fetch("/api/shift");
     if (res.ok) {
       const data = await res.json();
       setShiftsHistory(data);
@@ -167,7 +167,7 @@ export default function ShiftManagementPage() {
     setProcessing(true);
     try {
       const selectedUserData = users.find((u) => u._id === selectedUser);
-      const res = await fetch("/api/shifts", {
+      const res = await fetch("/api/shift", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -190,6 +190,9 @@ export default function ShiftManagementPage() {
       setPassword("");
       await fetchActiveShift(); // Refresh active state
     } catch (error: any) {
+      if (error.message.includes("already an active shift")) {
+        await fetchActiveShift(); // Sync state if already active
+      }
       toast({
         title: "Error",
         description: error.message,
@@ -205,7 +208,7 @@ export default function ShiftManagementPage() {
 
     setProcessing(true);
     try {
-      const res = await fetch(`/api/shifts/${activeShift._id}/end`, {
+      const res = await fetch(`/api/shift/${activeShift._id}/end`, {
         method: "POST",
       });
 
@@ -235,7 +238,7 @@ export default function ShiftManagementPage() {
     setDetailShift(shift);
     setLoadingDetails(true);
     try {
-      const res = await fetch(`/api/shifts/${shift._id}/transactions`);
+      const res = await fetch(`/api/shift/${shift._id}/transactions`);
       if (res.ok) {
         const data = await res.json();
         setDetailTransactions(data);
@@ -309,56 +312,75 @@ export default function ShiftManagementPage() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-col md:flex-row gap-4 items-end">
-            <div className="w-full md:w-1/3 space-y-2">
-              <label className="text-sm font-medium">Select Operator</label>
-              <Select
-                value={activeShift ? activeShift.operatorName : selectedUser}
-                onValueChange={setSelectedUser}
-                disabled={!!activeShift}
-              >
-                <SelectTrigger>
-                  <SelectValue
-                    placeholder={
-                      activeShift ? activeShift.operatorName : "Select Operator"
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {users.map((user) => (
-                    <SelectItem key={user._id} value={user._id}>
-                      {user.fullName} ({user.role})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {!activeShift ? (
+              <>
+                <div className="w-full md:w-1/3 space-y-2">
+                  <label className="text-sm font-medium">Select Operator</label>
+                  <Select
+                    value={selectedUser}
+                    onValueChange={setSelectedUser}
+                    disabled={!!activeShift}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select Operator" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {users.map((user) => (
+                        <SelectItem key={user._id} value={user._id}>
+                          {user.fullName} ({user.role})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            <div className="flex gap-2">
-              <Button
-                onClick={openPasswordDialog}
-                disabled={!!activeShift || processing || !selectedUser}
-                className="bg-green-600 hover:bg-green-700 text-white"
-              >
-                {processing ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <PlayCircle className="mr-2 h-4 w-4" />
-                )}
-                Mulai (Start)
-              </Button>
-              <Button
-                onClick={handleEndShift}
-                disabled={!activeShift || processing}
-                variant="destructive"
-              >
-                {processing ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <StopCircle className="mr-2 h-4 w-4" />
-                )}
-                Selesai (Stop/Finish)
-              </Button>
-            </div>
+                <Button
+                  onClick={openPasswordDialog}
+                  disabled={processing || !selectedUser}
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                >
+                  {processing ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <PlayCircle className="mr-2 h-4 w-4" />
+                  )}
+                  Mulai (Start Shift)
+                </Button>
+              </>
+            ) : (
+              <div className="flex items-center gap-4 w-full justify-between">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Current Session
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Badge
+                      variant="outline"
+                      className="text-green-600 border-green-200 bg-green-50"
+                    >
+                      Running
+                    </Badge>
+                    <span className="font-semibold text-lg">
+                      {activeShift.operatorName}
+                    </span>
+                  </div>
+                </div>
+
+                <Button
+                  onClick={handleEndShift}
+                  disabled={processing}
+                  variant="destructive"
+                  size="lg"
+                >
+                  {processing ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <StopCircle className="mr-2 h-4 w-4" />
+                  )}
+                  Selesai (Stop/Finish Shift)
+                </Button>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

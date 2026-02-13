@@ -131,15 +131,25 @@ export async function POST(request: NextRequest) {
       },
     );
 
+    // Check for Active Shift to link
+    const activeShift = await db
+      .collection("shifts")
+      .findOne({ status: "active" });
+    const shiftId = activeShift ? activeShift._id : null;
+    const operatorId = activeShift ? activeShift.operatorId : null;
+
     // Create payment record (initial 0 for regular)
     const dueDate = endTime
       ? new Date(endTime.getTime() + 24 * 60 * 60000)
       : new Date(startTime.getTime() + 24 * 60 * 60000);
+
     await db.collection("payments").insertOne({
       rentalId: rentalResult.insertedId,
       amount: totalPrice,
       status: "pending",
       dueDate,
+      shiftId, // Link to active shift if any
+      cashierName: activeShift ? activeShift.operatorName : null,
       createdAt: new Date(),
       updatedAt: new Date(),
     });

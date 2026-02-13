@@ -34,7 +34,7 @@ export async function GET(
         { $unwind: { path: "$rental", preserveNullAndEmptyArrays: true } }, // Preserve payments without rental (e.g. direct sales if any)
         {
           $lookup: {
-            from: "tvunits",
+            from: "tvs",
             localField: "rental.tvId",
             foreignField: "_id",
             as: "tv",
