@@ -17,6 +17,7 @@ import {
   Utensils,
   User,
   Maximize,
+  Key,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { NotificationsPopover } from "./notifications-popover";
@@ -138,6 +139,7 @@ export function AdminLayout({ children, user }: AdminLayoutProps) {
     { href: "/admin/rentals", label: "Rentals", icon: BarChart3 },
     { href: "/admin/makanan", label: "Menu / Add-ons", icon: Utensils },
     { href: "/admin/payments", label: "Payments", icon: DollarSign },
+    { href: "/admin/settings/licenses", label: "Licenses", icon: Key },
     { href: "/admin/shift", label: "Manajemen Kasir", icon: Clock },
     { href: "/admin/users", label: "User Manajemen", icon: User },
     { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
