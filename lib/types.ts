@@ -11,12 +11,40 @@ export interface MenuItem {
   updatedAt: Date;
 }
 
-// Admin User
+// Admin User (now with roles)
 export interface Admin {
   _id?: ObjectId;
   username: string;
   email: string;
-  passwordHash: string;
+  passwordHash: string; // stored as 'password' in DB but let's keep type consistent if possible, though register route uses 'password'
+  fullName?: string;
+  role: "admin" | "operator";
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Shift Management
+export interface Shift {
+  _id?: ObjectId;
+  operatorId: ObjectId;
+  operatorName: string;
+  startTime: Date;
+  endTime?: Date;
+  status: "active" | "completed";
+
+  // Financial Summary
+  totalTransactions: number; // Count of payment transactions
+  totalRevenue: number; // Sum of payments received
+
+  // Details
+  transactions: {
+    paymentId: ObjectId;
+    amount: number;
+    description: string; // e.g., "Rental TV 1"
+    timestamp: Date;
+  }[];
+
+  notes?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -72,6 +100,7 @@ export interface Rental {
   pausedAt?: Date | null; // Timestamp when rental was paused
   accumulatedDuration?: number; // Duration (in ms) accumulated before pause (for regular rentals) or preserved remaining (for hourly)
   publicAccessKey: string; // Unique key for customer to view status
+  shiftId?: ObjectId; // Link to shift
   createdAt: Date;
   updatedAt: Date;
 }
@@ -82,6 +111,8 @@ export interface Payment {
   rentalId: ObjectId;
   amount: number;
   status: "pending" | "paid" | "overdue";
+  paymentMethod: "cash" | "qris" | "transfer";
+  shiftId?: ObjectId; // Link to shift
   dueDate: Date;
   paidDate?: Date;
   notes?: string;

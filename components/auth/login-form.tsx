@@ -1,35 +1,41 @@
-'use client';
+"use client";
 
-import React, { useState } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { loginAction } from '@/app/actions/auth';
+import React, { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { loginAction } from "@/lib/actions/auth";
 
 export function LoginForm() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
-  // We keep controlled inputs for immediate feedback if needed, 
+  // We keep controlled inputs for immediate feedback if needed,
   // but we can also just use the form action directly.
   // For simplicity and error handling in client component:
 
   async function clientAction(formData: FormData) {
     setLoading(true);
-    setError('');
+    setError("");
 
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          username: formData.get('username'),
-          password: formData.get('password'),
+          username: formData.get("username"),
+          password: formData.get("password"),
         }),
       });
 
@@ -37,14 +43,14 @@ export function LoginForm() {
 
       if (response.ok && (data.success || data.admin)) {
         router.refresh();
-        router.push('/admin/dashboard');
+        router.push("/admin/dashboard");
       } else {
-        setError(data.error || 'Login failed');
+        setError(data.error || "Login failed");
         setLoading(false);
       }
     } catch (err) {
-      console.error('Login error:', err);
-      setError('An unexpected error occurred');
+      console.error("Login error:", err);
+      setError("An unexpected error occurred");
       setLoading(false);
     }
   }
@@ -61,7 +67,9 @@ export function LoginForm() {
         <CardContent>
           {error && (
             <Alert className="mb-4 border-destructive bg-destructive/10">
-              <AlertDescription className="text-destructive">{error}</AlertDescription>
+              <AlertDescription className="text-destructive">
+                {error}
+              </AlertDescription>
             </Alert>
           )}
           <form action={clientAction} className="space-y-4">
@@ -87,16 +95,12 @@ export function LoginForm() {
                 required
               />
             </div>
-            <Button
-              type="submit"
-              className="w-full"
-              disabled={loading}
-            >
-              {loading ? 'Logging in...' : 'Login'}
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? "Logging in..." : "Login"}
             </Button>
           </form>
           <div className="mt-4 text-center text-sm text-muted-foreground">
-            Don't have an account?{' '}
+            Don't have an account?{" "}
             <Link href="/auth/register" className="text-accent hover:underline">
               Create one here
             </Link>

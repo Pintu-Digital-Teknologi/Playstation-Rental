@@ -1,20 +1,23 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { Bell, Clock, AlertCircle, DollarSign } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { useState, useEffect } from "react";
+import { Bell, Clock, AlertCircle, DollarSign } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from '@/components/ui/popover';
-import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { getNotificationsAction, markReadAction } from '@/app/actions/notifications';
+} from "@/components/ui/popover";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  getNotificationsAction,
+  markReadAction,
+} from "@/lib/actions/notifications";
 
 interface Notification {
   _id: string;
-  type: 'time-warning' | 'time-up' | 'payment-due' | 'system';
+  type: "time-warning" | "time-up" | "payment-due" | "system";
   message: string;
   read: boolean;
   createdAt: string;
@@ -39,7 +42,7 @@ export function NotificationsPopover() {
         setUnreadCount(result.unreadCount || 0);
       }
     } catch (error) {
-      console.error('Error fetching notifications:', error);
+      console.error("Error fetching notifications:", error);
     }
   };
 
@@ -47,10 +50,12 @@ export function NotificationsPopover() {
     try {
       await markReadAction(notificationId);
       // Optimistic update
-      setNotifications(prev => prev.map(n => n._id === notificationId ? { ...n, read: true } : n));
-      setUnreadCount(prev => Math.max(0, prev - 1));
+      setNotifications((prev) =>
+        prev.map((n) => (n._id === notificationId ? { ...n, read: true } : n)),
+      );
+      setUnreadCount((prev) => Math.max(0, prev - 1));
     } catch (error) {
-      console.error('Error marking notification:', error);
+      console.error("Error marking notification:", error);
     }
   };
 
@@ -58,22 +63,22 @@ export function NotificationsPopover() {
     try {
       await markReadAction(undefined, true);
       // Optimistic update
-      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
       setUnreadCount(0);
     } catch (error) {
-      console.error('Error marking all as read:', error);
+      console.error("Error marking all as read:", error);
     }
   };
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
-      case 'time-warning':
+      case "time-warning":
         return <Clock className="w-4 h-4 text-yellow-400" />;
-      case 'time-up':
+      case "time-up":
         return <AlertCircle className="w-4 h-4 text-red-400" />;
-      case 'payment-due':
+      case "payment-due":
         return <DollarSign className="w-4 h-4 text-orange-400" />;
-      case 'system':
+      case "system":
         return <Bell className="w-4 h-4 text-blue-400" />;
       default:
         return <Bell className="w-4 h-4" />;
@@ -86,7 +91,7 @@ export function NotificationsPopover() {
     const diffMs = now.getTime() - notificationDate.getTime();
     const diffMins = Math.floor(diffMs / 60000);
 
-    if (diffMins < 1) return 'just now';
+    if (diffMins < 1) return "just now";
     if (diffMins < 60) return `${diffMins}m ago`;
     const diffHours = Math.floor(diffMins / 60);
     if (diffHours < 24) return `${diffHours}h ago`;
@@ -103,7 +108,7 @@ export function NotificationsPopover() {
               className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center bg-red-500"
               variant="default"
             >
-              {unreadCount > 9 ? '9+' : unreadCount}
+              {unreadCount > 9 ? "9+" : unreadCount}
             </Badge>
           )}
         </Button>
@@ -135,10 +140,11 @@ export function NotificationsPopover() {
                   <div
                     key={notification._id}
                     onClick={() => markAsRead(notification._id)}
-                    className={`p-3 rounded-lg cursor-pointer transition-colors ${notification.read
-                      ? 'bg-secondary/50 hover:bg-secondary'
-                      : 'bg-secondary hover:bg-secondary/80 border border-accent/20'
-                      }`}
+                    className={`p-3 rounded-lg cursor-pointer transition-colors ${
+                      notification.read
+                        ? "bg-secondary/50 hover:bg-secondary"
+                        : "bg-secondary hover:bg-secondary/80 border border-accent/20"
+                    }`}
                   >
                     <div className="flex items-start gap-2">
                       <div className="mt-1">

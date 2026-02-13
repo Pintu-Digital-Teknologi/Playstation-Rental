@@ -1,7 +1,7 @@
 import { getAdminFromSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { AdminLayout } from "@/components/admin/admin-layout";
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 export default async function Layout({
   children,
@@ -14,5 +14,16 @@ export default async function Layout({
     redirect("/auth/login");
   }
 
-  return <AdminLayout>{children}</AdminLayout>;
+  return (
+    <AdminLayout
+      user={{
+        _id: admin._id.toString(),
+        username: admin.username,
+        fullName: admin.fullName || admin.username,
+        role: admin.role,
+      }}
+    >
+      {children}
+    </AdminLayout>
+  );
 }

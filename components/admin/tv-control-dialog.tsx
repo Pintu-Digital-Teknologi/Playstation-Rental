@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Volume2, Volume1 } from "lucide-react";
-import { controlTVAction } from "@/app/actions/tv";
+import { controlTVAction } from "@/lib/actions/tv";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -45,7 +45,7 @@ export function TVControlDialog({
 
     try {
       const result = await controlTVAction(tv._id, action, {
-        timerMinutes: parseInt(timerMinutes)
+        timerMinutes: parseInt(timerMinutes),
       });
 
       if (result.error) {

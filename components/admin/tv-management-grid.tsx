@@ -26,7 +26,7 @@ import { AddOnDialog } from "./add-on-dialog";
 import { NewRentalDialog } from "./new-rental-dialog";
 import { formatTime } from "@/lib/function";
 import { TimerDisplay } from "./timer-display";
-import { getTVsAction } from "@/app/actions/tv";
+import { getTVsAction } from "@/lib/actions/tv";
 
 interface TVUnit {
   _id: string;
@@ -75,7 +75,7 @@ export function TVManagementGrid() {
         throw new Error(result.error);
       }
 
-      setTvs((result.tvs as unknown) as TVUnit[] || []);
+      setTvs((result.tvs as unknown as TVUnit[]) || []);
       setError("");
     } catch (err: any) {
       setError(err.message || "Failed to load TV status");

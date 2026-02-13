@@ -1,10 +1,8 @@
 "use client";
 
-import React from "react";
-
-import { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Menu,
@@ -17,18 +15,103 @@ import {
   Clock,
   Home,
   Utensils,
-  Key,
+  User,
+  Maximize,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { NotificationsPopover } from "./notifications-popover";
+import { useToast } from "@/components/ui/use-toast";
+import { Loader2 } from "lucide-react";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
+  user: {
+    _id: string;
+    username: string;
+    fullName: string;
+    role: "admin" | "operator";
+  };
 }
 
-export function AdminLayout({ children }: AdminLayoutProps) {
+import { UserProvider } from "./user-context";
+
+export function AdminLayout({ children, user }: AdminLayoutProps) {
   const router = useRouter();
+  const pathname = usePathname();
+  const { toast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
+  const [isChecking, setIsChecking] = useState(true);
+  const [hasActiveShift, setHasActiveShift] = useState(false);
+  const [activeShiftRole, setActiveShiftRole] = useState<string | null>(null);
+  const userRole = user.role; // Still used for initial state or fallback
+
+  useEffect(() => {
+    checkActiveShift();
+  }, [pathname]);
+
+  const checkActiveShift = async () => {
+    // Skip checks for public/home if appropriate
+    if (pathname === "/") {
+      setIsChecking(false);
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/shifts/active");
+      if (res.ok) {
+        const data = await res.json();
+
+        if (data) {
+          setHasActiveShift(true);
+          const currentRole = data.operatorRole || "operator"; // Default to operator if missing
+          setActiveShiftRole(currentRole);
+
+          // Rule: If shift is active, PERMISSIONS ARE BASED ON ACTIVE SHIFT OPERATOR ROLE
+          const restrictedRoutes = [
+            "/admin/ip-management",
+            "/admin/makanan",
+            "/admin/users",
+          ];
+          const isRestricted = restrictedRoutes.some((route) =>
+            pathname.startsWith(route),
+          );
+
+          if (isRestricted && currentRole !== "admin") {
+            toast({
+              title: "Restricted Access",
+              description: `This page is restricted for ${currentRole}s during an active shift.`,
+              variant: "destructive",
+            });
+            router.push("/admin/dashboard");
+            setIsChecking(false);
+            return;
+          }
+        } else {
+          setHasActiveShift(false);
+          setActiveShiftRole(null);
+
+          // No active shift -> Redirect to Shifts page to start one
+          // Exception: We are already on shifts page
+          if (pathname !== "/admin/shifts") {
+            toast({
+              title: "Shift Required",
+              description: "You must start a shift to access this page.",
+              variant: "destructive",
+            });
+            router.push("/admin/shifts");
+            setIsChecking(false);
+            return;
+          }
+        }
+      } else {
+        console.error("Failed to check shift status");
+      }
+    } catch (error) {
+      console.error("Error checking auth/shift:", error);
+    } finally {
+      setIsChecking(false);
+    }
+  };
 
   const handleLogout = async () => {
     try {
@@ -39,13 +122,24 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     }
   };
 
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen();
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      }
+    }
+  };
+
   const menuItems = [
     { href: "/admin/dashboard", label: "Dashboard", icon: Monitor },
     { href: "/admin/ip-management", label: "IP Management", icon: Wifi },
     { href: "/admin/rentals", label: "Rentals", icon: BarChart3 },
-    { href: "/admin/makanan", label: "Menu / Add-ons", icon: Utensils }, // Added menu item
+    { href: "/admin/makanan", label: "Menu / Add-ons", icon: Utensils },
     { href: "/admin/payments", label: "Payments", icon: DollarSign },
-    { href: "/admin/settings/licenses", label: "API Keys", icon: Key },
+    { href: "/admin/shifts", label: "Manajemen Kasir", icon: Clock },
+    { href: "/admin/users", label: "User Manajemen", icon: User },
     { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
     { href: "/status", label: "Status", icon: Clock },
     { href: "/", label: "Home", icon: Home },
@@ -66,6 +160,21 @@ export function AdminLayout({ children }: AdminLayoutProps) {
       <nav className="flex-1 p-4 space-y-2">
         {menuItems.map((item) => {
           const Icon = item.icon;
+
+          // Determine effective role: Active Shift Operator takes precedence
+          // If no shift active, we fall back to userRole, but user is likely restricted to /shifts anyway
+          const effectiveRole = activeShiftRole || userRole;
+
+          // Hide restricted items if not admin
+          const restricted = [
+            "/admin/ip-management",
+            "/admin/makanan",
+            "/admin/users",
+          ];
+          if (effectiveRole !== "admin" && restricted.includes(item.href)) {
+            return null;
+          }
+
           return (
             <Link
               key={item.href}
@@ -80,7 +189,15 @@ export function AdminLayout({ children }: AdminLayoutProps) {
         })}
       </nav>
 
-      <div className="p-4 border-t border-border">
+      <div className="p-4 border-t border-border space-y-2">
+        <Button
+          variant="outline"
+          className="w-full justify-start gap-2 bg-transparent"
+          onClick={toggleFullscreen}
+        >
+          <Maximize className="w-4 h-4" />
+          Full Screen
+        </Button>
         <Button
           variant="outline"
           className="w-full justify-start gap-2 bg-transparent"
@@ -93,7 +210,6 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     </div>
   );
 
-  // Perbaiki bagian render di admin-layout.tsx
   return (
     <div className="flex min-h-screen bg-background">
       {/* Desktop Sidebar - Pastikan w-64 dan z-index aman */}
@@ -120,7 +236,17 @@ export function AdminLayout({ children }: AdminLayoutProps) {
       </div>
 
       {/* Main Content - Berikan margin-left (ml-64) agar tidak tertutup sidebar fixed */}
-      <main className="flex-1 md:ml-64 pt-16 md:pt-0">{children}</main>
+      <main className="flex-1 md:ml-64 pt-16 md:pt-0">
+        <UserProvider user={user}>
+          {isChecking && pathname !== "/admin/shifts" && pathname !== "/" ? (
+            <div className="flex h-screen items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            children
+          )}
+        </UserProvider>
+      </main>
     </div>
   );
 }

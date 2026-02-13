@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AlertCircle, Loader2 } from "lucide-react";
 import type { TVUnit } from "@/lib/types";
-import { createTVAction, updateTVAction } from "@/app/actions/tv";
+import { createTVAction, updateTVAction } from "@/lib/actions/tv";
 
 interface TVIPFormDialogProps {
   open: boolean;
@@ -101,11 +101,14 @@ export function TVIPFormDialog({
 
     try {
       const formDataToSend = new FormData();
-      formDataToSend.append('name', formData.name);
-      formDataToSend.append('ipAddress', formData.ipAddress);
-      if (formData.macAddress) formDataToSend.append('macAddress', formData.macAddress);
-      if (formData.description) formDataToSend.append('description', formData.description);
-      if (formData.pricePerHour) formDataToSend.append('pricePerHour', formData.pricePerHour);
+      formDataToSend.append("name", formData.name);
+      formDataToSend.append("ipAddress", formData.ipAddress);
+      if (formData.macAddress)
+        formDataToSend.append("macAddress", formData.macAddress);
+      if (formData.description)
+        formDataToSend.append("description", formData.description);
+      if (formData.pricePerHour)
+        formDataToSend.append("pricePerHour", formData.pricePerHour);
 
       let result;
       if (tv) {

@@ -1,14 +1,14 @@
-'use client';
+"use client";
 
-import React, { useEffect, useState } from 'react';
-import { Button } from '@/components/ui/button';
+import React, { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
+} from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -16,9 +16,9 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { Plus, Edit2, Trash2, AlertCircle, CheckCircle2 } from 'lucide-react';
-import { TVIPFormDialog } from './tv-ip-form-dialog';
+} from "@/components/ui/table";
+import { Plus, Edit2, Trash2, AlertCircle, CheckCircle2 } from "lucide-react";
+import { TVIPFormDialog } from "./tv-ip-form-dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,9 +27,9 @@ import {
   AlertDialogDescription,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import type { TVUnit } from '@/lib/types';
-import { getTVsAction, deleteTVAction } from '@/app/actions/tv';
+} from "@/components/ui/alert-dialog";
+import type { TVUnit } from "@/lib/types";
+import { getTVsAction, deleteTVAction } from "@/lib/actions/tv";
 
 export function IPManagementList() {
   const [tvs, setTvs] = useState<TVUnit[]>([]);
@@ -55,9 +55,9 @@ export function IPManagementList() {
         throw new Error(result.error);
       }
 
-      setTvs((result.tvs as unknown) as TVUnit[] || []);
+      setTvs((result.tvs as unknown as TVUnit[]) || []);
     } catch (err: any) {
-      setError(err.message || 'Failed to load TV list');
+      setError(err.message || "Failed to load TV list");
       console.error(err);
     } finally {
       setIsLoading(false);
@@ -94,7 +94,7 @@ export function IPManagementList() {
       setDeleteDialogOpen(false);
       setTvToDelete(null);
     } catch (err) {
-      setError('Failed to delete TV');
+      setError("Failed to delete TV");
       console.error(err);
     }
   };
@@ -107,20 +107,20 @@ export function IPManagementList() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'available':
-        return 'text-green-500';
-      case 'in-use':
-        return 'text-blue-500';
-      case 'offline':
-        return 'text-red-500';
+      case "available":
+        return "text-green-500";
+      case "in-use":
+        return "text-blue-500";
+      case "offline":
+        return "text-red-500";
       default:
-        return 'text-gray-500';
+        return "text-gray-500";
     }
   };
 
   const getStatusIcon = (status: string) => {
-    if (status === 'available' || status === 'offline') {
-      return status === 'available' ? CheckCircle2 : AlertCircle;
+    if (status === "available" || status === "offline") {
+      return status === "available" ? CheckCircle2 : AlertCircle;
     }
     return CheckCircle2;
   };
@@ -178,10 +178,11 @@ export function IPManagementList() {
                   {tvs.map((tv) => {
                     const StatusIcon = getStatusIcon(tv.status);
                     return (
-                      <TableRow key={tv._id?.toString()} className="hover:bg-secondary/30">
-                        <TableCell className="font-medium">
-                          {tv.name}
-                        </TableCell>
+                      <TableRow
+                        key={tv._id?.toString()}
+                        className="hover:bg-secondary/30"
+                      >
+                        <TableCell className="font-medium">{tv.name}</TableCell>
                         <TableCell className="font-mono text-sm">
                           {tv.ipAddress}
                         </TableCell>
@@ -237,8 +238,9 @@ export function IPManagementList() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete TV Unit</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete <strong>{tvToDelete?.name}</strong>{' '}
-              ({tvToDelete?.ipAddress})? This action cannot be undone.
+              Are you sure you want to delete{" "}
+              <strong>{tvToDelete?.name}</strong> ({tvToDelete?.ipAddress})?
+              This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="flex gap-2">
