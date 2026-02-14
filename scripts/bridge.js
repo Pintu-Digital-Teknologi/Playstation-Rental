@@ -14,7 +14,7 @@
  * export BRIDGE_API_KEY="your-license-key-here"
  * node bridge.js
  * # Atau
- * node bridge.js --key="your-license-key-here"
+ * node bridge.js --key="your-license-key-here" --api="http://localhost:3000"
  */
 
 const mqtt = require("mqtt");
