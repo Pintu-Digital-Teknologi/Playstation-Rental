@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   // Hanya jalankan logika CORS untuk route yang diawali dengan /api
   if (request.nextUrl.pathname.startsWith("/api")) {
     const origin = request.headers.get("origin");
@@ -9,7 +9,7 @@ export function middleware(request: NextRequest) {
     // Daftar origin yang diperbolehkan
     const allowedOrigins = [
       "http://localhost:5173",
-      "https://license-rental.vercel.app",
+      "https://license-rental.vercel.app/",
       "http://localhost:3000", // Tambahkan localhost backend juga untuk keamanan
     ];
 
