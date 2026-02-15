@@ -36,15 +36,18 @@ import {
   Receipt,
   Utensils,
   Monitor,
+  CreditCard,
 } from "lucide-react";
 import { Rental } from "@/lib/types";
 import { formatTime } from "@/lib/function";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 // Interface extending the basic structure to include nested objects
 interface Payment {
   _id: string;
   amount: number;
   status: "pending" | "paid" | "overdue";
+  paymentMethod?: "cash" | "qris" | "transfer";
   dueDate: string;
   paidDate?: string;
   notes?: string;
@@ -64,6 +67,9 @@ export function PaymentsList() {
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
   const [isUpdateOpen, setIsUpdateOpen] = useState(false);
   const [updateNote, setUpdateNote] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<
+    "cash" | "qris" | "transfer"
+  >("cash");
 
   // State for Detail Dialog
   const [detailPayment, setDetailPayment] = useState<Payment | null>(null);
@@ -99,6 +105,7 @@ export function PaymentsList() {
           paymentId: selectedPayment._id,
           status,
           notes: updateNote,
+          paymentMethod: status === "paid" ? paymentMethod : undefined,
         }),
       });
 
@@ -106,6 +113,7 @@ export function PaymentsList() {
 
       setIsUpdateOpen(false);
       setUpdateNote("");
+      setPaymentMethod("cash"); // Reset to default
       setSelectedPayment(null);
       fetchPayments();
     } catch (err) {
@@ -220,6 +228,12 @@ export function PaymentsList() {
                             {payment.status}
                           </Badge>
                         </div>
+                        {payment.paymentMethod && (
+                          <div className="text-xs text-muted-foreground mt-1 capitalize flex items-center gap-1">
+                            <CreditCard className="w-3 h-3" />{" "}
+                            {payment.paymentMethod}
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {formatDate(payment.dueDate)}
@@ -243,6 +257,13 @@ export function PaymentsList() {
                             variant="outline"
                             onClick={() => {
                               setSelectedPayment(payment);
+                              // If already paid, prefer keeping its existing method or fallback to cash
+                              if (payment.paymentMethod) {
+                                setPaymentMethod(payment.paymentMethod);
+                              } else {
+                                setPaymentMethod("cash");
+                              }
+                              setUpdateNote(payment.notes || "");
                               setIsUpdateOpen(true);
                             }}
                           >
@@ -276,6 +297,30 @@ export function PaymentsList() {
                 <p className="text-lg font-bold">
                   Rp {selectedPayment.amount.toLocaleString("id-ID")}
                 </p>
+              </div>
+
+              {/* Payment Method Selection */}
+              <div className="space-y-2">
+                <Label>Payment Method</Label>
+                <RadioGroup
+                  defaultValue="cash"
+                  value={paymentMethod}
+                  onValueChange={(val) => setPaymentMethod(val as any)}
+                  className="flex gap-4"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="cash" id="cash" />
+                    <Label htmlFor="cash">Cash</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="qris" id="qris" />
+                    <Label htmlFor="qris">QRIS</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="transfer" id="transfer" />
+                    <Label htmlFor="transfer">Transfer</Label>
+                  </div>
+                </RadioGroup>
               </div>
 
               <div className="space-y-2">
@@ -333,11 +378,19 @@ export function PaymentsList() {
               <div className="flex justify-between items-start bg-secondary/50 p-4 rounded-lg">
                 <div>
                   <p className="text-sm text-muted-foreground">Status</p>
-                  <Badge
-                    className={`mt-1 capitalize ${getStatusColor(detailPayment.status)}`}
-                  >
-                    {detailPayment.status}
-                  </Badge>
+                  <div className="flex gap-2 mt-1">
+                    <Badge
+                      className={`capitalize ${getStatusColor(detailPayment.status)}`}
+                    >
+                      {detailPayment.status}
+                    </Badge>
+                    {detailPayment.paymentMethod && (
+                      <Badge variant="outline" className="capitalize">
+                        {detailPayment.paymentMethod}
+                      </Badge>
+                    )}
+                  </div>
+
                   {detailPayment.paidDate && (
                     <p className="text-xs text-muted-foreground mt-1">
                       Paid on: {formatDate(detailPayment.paidDate)}
