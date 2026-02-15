@@ -11,6 +11,7 @@
 
 require("dotenv").config();
 const mqtt = require("mqtt");
+const wol = require("wake_on_lan");
 const { exec, execSync } = require("child_process");
 
 // Check ADB availability
@@ -105,6 +106,15 @@ client.on("message", (topic, message) => {
       if (payload.action === "SLEEP_TIMER") {
         const minutes = payload.data?.duration || 0;
         setSleepTimer(payload.ip, minutes);
+      } else if (payload.action === "WOL") {
+        const mac = payload.data?.mac;
+        if (mac) {
+          console.log(`[WOL] Mengirim Magic Packet ke ${mac}...`);
+          wol.wake(mac, (err) => {
+            if (err) console.error(`[WOL] Gagal: ${err}`);
+            else console.log(`[WOL] Berhasil dikirim.`);
+          });
+        }
       } else {
         executeCommand(payload.ip, payload.action);
       }

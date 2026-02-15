@@ -32,6 +32,20 @@ export async function getTVStatus(ip: string): Promise<{
 }
 
 /**
+ * Wake TV menggunakan Wake-on-LAN (via Bridge MQTT)
+ */
+export async function wakeTV(mac: string): Promise<boolean> {
+  // Karena kita di VPS, kita tidak bisa kirim WoL packet langsung.
+  // Kita broadcast ke MQTT agar Bridge (Lokal) yang mengirim WoL packet.
+  // Note: Kita butuh IP dummy atau IP broadcast 0.0.0.0 karena WoL butuh MAC,
+  // tapi struktur MQTT kita butuh IP untuk logging/topic (opsional).
+  // Di sini kita kirim ke "BROADCAST" atau IP dummy, tapi payload bawa MAC.
+  console.log(`Sending Wake-on-LAN request for ${mac} via MQTT...`);
+  await publishTVAction("255.255.255.255", "WOL", { mac });
+  return true;
+}
+
+/**
  * Kirim perintah ke TV via MQTT
  */
 export async function sendCommandToTV(
