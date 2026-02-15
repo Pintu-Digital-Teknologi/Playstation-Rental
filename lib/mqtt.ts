@@ -35,6 +35,7 @@ export type TVAction =
   | "VOLUME_DOWN"
   | "BACK"
   | "HOME"
+  | "SLEEP_TIMER"
   | "OFF"
   | "ON";
 
@@ -43,7 +44,11 @@ export type TVAction =
  * @param ip IP Address TV di jaringan lokal rental
  * @param action Action yang dilakukan (OFF/ON)
  */
-export async function publishTVAction(ip: string, action: TVAction) {
+export async function publishTVAction(
+  ip: string,
+  action: TVAction,
+  data?: any,
+) {
   try {
     const db = await getDatabase();
     const now = new Date();
@@ -72,6 +77,7 @@ export async function publishTVAction(ip: string, action: TVAction) {
     const payload = JSON.stringify({
       ip,
       action,
+      data, // Include additional data (e.g., duration)
       timestamp: now.toISOString(),
     });
 
@@ -84,7 +90,7 @@ export async function publishTVAction(ip: string, action: TVAction) {
           console.error(`Failed to publish to ${topic}:`, err);
         } else {
           console.log(
-            `MQTT Sent to ${license.name} (${license.key}): ${action} -> ${ip}`,
+            `MQTT Sent to ${license.name} (${license.key}): ${action} -> ${ip} ${data ? JSON.stringify(data) : ""}`,
           );
         }
       });

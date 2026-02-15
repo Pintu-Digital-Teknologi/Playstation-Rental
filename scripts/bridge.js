@@ -6,84 +6,115 @@
  * 1. Subscribe ke MQTT topic 'playstation-rental/tv/control/<API_KEY>'
  * 2. Menerima perintah { ip, action: "OFF" }
  * 3. Eksekusi perintah ADB ke IP TV tersebut
- *
- * Cara install:
- * npm install mqtt adbkit
- *
- * Cara jalan:
- * export BRIDGE_API_KEY="your-license-key-here"
- * node bridge.js
- * # Atau
- * node bridge.js --key="your-license-key-here" --api="http://localhost:3000"
+ * 4. Update status TV ke server secara berkala
  */
 
+require("dotenv").config();
 const mqtt = require("mqtt");
 const { exec, execSync } = require("child_process");
-const path = require("path");
 
-// Check for ADB availability immediately
+// Check ADB availability
 try {
   execSync("adb version", { stdio: "ignore" });
 } catch (e) {
   console.error(
     "\x1b[31m%s\x1b[0m",
-    "CRITICAL ERROR: 'adb' command not found!",
+    "CRITICAL ERROR: Command 'adb' tidak ditemukan!",
   );
   console.error(
-    "Please install Android Platform Tools and add it to your system PATH.",
-  );
-  console.error(
-    "Download: https://developer.android.com/studio/releases/platform-tools",
+    "Silakan install Android Platform Tools dan tambahkan ke system PATH.",
   );
   process.exit(1);
 }
 
-// Helper to get args
+// Konfigurasi Environment / Args
 const args = process.argv.slice(2).reduce((acc, arg) => {
   const [key, value] = arg.split("=");
   acc[key.replace(/^--/, "")] = value || true;
   return acc;
 }, {});
 
-// Konfigurasi
-// Konfigurasi
-const MQTT_BROKER = process.env.MQTT_BROKER || "mqtt://broker.hivemq.com";
-const BRIDGE_API_KEY = process.env.BRIDGE_API_KEY || args.key;
-// Allow overriding API URL (default to localhost for dev, but user likely needs to set this)
-const API_URL = process.env.API_URL || args.api || "http://localhost:3000";
-// Note: User running this script against VPS needs to set API_URL=https://vps-domain.com
+const MQTT_BROKER =
+  args.broker || process.env.MQTT_BROKER || "mqtt://broker.hivemq.com";
+const BRIDGE_API_KEY = args.key || process.env.BRIDGE_API_KEY;
+const API_URL = args.api || process.env.API_URL || "http://localhost:3000";
 
 if (!BRIDGE_API_KEY) {
-  console.error("ERROR: BRIDGE_API_KEY is required!");
-  console.error("Usage: node bridge.js --key=YOUR_KEY");
+  console.error("ERROR: BRIDGE_API_KEY wajib diisi!");
+  console.error(
+    "Gunakan file .env atau jalankan dengan: node bridge.js --key=YOUR_KEY",
+  );
   process.exit(1);
 }
 
 const MQTT_TOPIC = `playstation-rental/tv/control/${BRIDGE_API_KEY}`;
 
-console.log(`Starting Bridge...`);
-console.log(`Broker: ${MQTT_BROKER}`);
-console.log(`Topic: ${MQTT_TOPIC}`);
-console.log(`API Key: ${BRIDGE_API_KEY}`);
-console.log(`API URL: ${API_URL}`);
+console.log(`=== BRIDGE TV CONTROL STARTED ===`);
+console.log(`Broker   : ${MQTT_BROKER}`);
+console.log(`Topic    : ${MQTT_TOPIC}`);
+console.log(`Key      : ${BRIDGE_API_KEY}`);
+console.log(`API URL  : ${API_URL}`);
+console.log(`=================================`);
 
+// === LOGIC TIMER ===
+const activeTimers = {}; // { '192.168.1.5': TimeoutID }
+
+function setSleepTimer(ip, minutes) {
+  // Clear existing timer if any
+  if (activeTimers[ip]) {
+    clearTimeout(activeTimers[ip]);
+    delete activeTimers[ip];
+  }
+
+  if (minutes > 0) {
+    console.log(`[TIMER] Set timer untuk ${ip}: ${minutes} menit`);
+    const durationMs = minutes * 60 * 1000;
+
+    activeTimers[ip] = setTimeout(() => {
+      console.log(`[TIMER] Waktu habis untuk ${ip}. Mematikan TV...`);
+      executeCommand(ip, "OFF");
+      delete activeTimers[ip];
+    }, durationMs);
+  } else {
+    console.log(`[TIMER] Timer dibatalkan untuk ${ip}`);
+  }
+}
+
+// === MQTT CLIENT ===
 const client = mqtt.connect(MQTT_BROKER, {
-  reconnectPeriod: 1000,
+  reconnectPeriod: 5000,
 });
 
 client.on("connect", () => {
-  console.log("Connected to MQTT Broker");
+  console.log("[MQTT] Terhubung ke Broker");
   client.subscribe(MQTT_TOPIC, (err) => {
     if (!err) {
-      console.log(`Subscribed to ${MQTT_TOPIC}`);
+      console.log(`[MQTT] Subscribed le ${MQTT_TOPIC}`);
     } else {
-      console.error("Subscription failed:", err);
+      console.error("[MQTT] Gagal subscribe:", err);
     }
   });
 });
 
-// --- Polling & Sync Logic ---
+client.on("message", (topic, message) => {
+  try {
+    const payload = JSON.parse(message.toString());
+    console.log("[MQTT] Menerima Perintah:", payload);
 
+    if (payload.ip && payload.action) {
+      if (payload.action === "SLEEP_TIMER") {
+        const minutes = payload.data?.duration || 0;
+        setSleepTimer(payload.ip, minutes);
+      } else {
+        executeCommand(payload.ip, payload.action);
+      }
+    }
+  } catch (e) {
+    console.error("[MQTT] Gagal parse pesan:", e);
+  }
+});
+
+// === SYNC STATUS ===
 async function fetchTVs() {
   try {
     const res = await fetch(`${API_URL}/api/tv/list`, {
@@ -93,39 +124,26 @@ async function fetchTVs() {
     const data = await res.json();
     return data.tvs || [];
   } catch (err) {
-    console.error("Failed to fetch TVs:", err.message);
+    console.error("[SYNC] Gagal mengambil daftar TV:", err.message);
     return [];
   }
 }
 
 async function checkTVStatus(ip) {
   return new Promise((resolve) => {
-    console.log(`Checking status for ${ip}...`);
+    // console.log(`[SYNC] Cek status ${ip}...`);
     exec(`adb connect ${ip}`, (error, stdout, stderr) => {
       if (error) {
-        console.log(`[${ip}] ADB Connect Error: ${error.message}`);
-        // Connection failed (maybe offline)
+        // console.log(`[${ip}] Connect Gagal: ${error.message}`);
         return resolve({ ip, isOnline: false, isReachable: false });
       }
-      // console.log(`[${ip}] ADB Connect Output: ${stdout.trim()}`);
 
-      // Check power state
-      // Note: We remove '| grep' so we don't rely on local shell (Windows cmd doesn't have grep)
-      // We parse the output in JS instead.
       exec(`adb -s ${ip}:5555 shell dumpsys power`, (err, out, serr) => {
         if (err) {
-          console.log(`[${ip}] Dumpsys Error: ${err.message}`);
           return resolve({ ip, isOnline: false, isReachable: true });
         }
-
         const output = out ? out.toString() : "";
-        // Look for mWakefulness=Awake
         const isOnline = output.match(/mWakefulness=Awake/);
-
-        // Debug log (optional, maybe shorten it)
-        // console.log(`[${ip}] Power Output length: ${output.length}`);
-        console.log(`[${ip}] Status: ${isOnline ? "ONLINE" : "OFFLINE"}`);
-
         resolve({ ip, isOnline: !!isOnline, isReachable: true });
       });
     });
@@ -133,7 +151,7 @@ async function checkTVStatus(ip) {
 }
 
 async function syncStatus() {
-  console.log("Syncing status...");
+  // console.log("[SYNC] Memulai sinkronisasi...");
   const tvs = await fetchTVs();
   if (tvs.length === 0) return;
 
@@ -152,35 +170,22 @@ async function syncStatus() {
     });
 
     if (res.ok) {
-      console.log(`Synced ${statuses.length} TVs successfully.`);
+      console.log(`[SYNC] Berhasil update status ${statuses.length} TV.`);
     } else {
-      console.error(`Sync failed: ${res.status} ${res.statusText}`);
+      console.error(`[SYNC] Gagal update ke server: ${res.status}`);
     }
   } catch (err) {
-    console.error("Sync error:", err.message);
+    console.error("[SYNC] Error request:", err.message);
   }
 }
 
-client.on("message", (topic, message) => {
-  try {
-    const payload = JSON.parse(message.toString());
-    console.log("Received Command:", payload);
-
-    if (payload.ip && payload.action) {
-      executeCommand(payload.ip, payload.action);
-    }
-  } catch (e) {
-    console.error("Failed to parse message:", e);
-  }
-});
-
-// Start polling loop (every 10 seconds)
+// Loop Sync setiap 10 detik
 setInterval(syncStatus, 10000);
-// Initial sync
 syncStatus();
 
+// === EXECUTE COMMAND ===
 function executeCommand(ip, action) {
-  console.log(`Executing ${action} on ${ip}...`);
+  console.log(`[ADB] Eksekusi ${action} ke TV ${ip}...`);
 
   exec(`adb connect ${ip}`, (error) => {
     if (error) console.log(`[${ip}] Connect Error: ${error.message}`);
@@ -189,13 +194,17 @@ function executeCommand(ip, action) {
     switch (action) {
       case "POWER_OFF":
       case "OFF":
-        // SLEEP (223) or POWER (26)
-        adbCmd = "input keyevent 223";
+        adbCmd = "input keyevent 223"; // SLEEP
+        // Batalkan timer jika dimatikan manual
+        if (activeTimers[ip]) {
+          console.log(`[TIMER] Timer dibatalkan karena manual OFF.`);
+          clearTimeout(activeTimers[ip]);
+          delete activeTimers[ip];
+        }
         break;
       case "POWER_ON":
       case "ON":
-        // WAKEUP (224)
-        adbCmd = "input keyevent 224";
+        adbCmd = "input keyevent 224"; // WAKEUP
         break;
       case "VOLUME_UP":
         adbCmd = "input keyevent 24";
@@ -210,21 +219,21 @@ function executeCommand(ip, action) {
         adbCmd = "input keyevent 3";
         break;
       default:
-        console.log(`Unknown action: ${action}`);
+        console.log(`[ADB] Action tidak dikenal: ${action}`);
         return;
     }
 
     if (adbCmd) {
       exec(`adb -s ${ip}:5555 shell ${adbCmd}`, (e, o, s) => {
         if (e) {
-          console.error(`[${ip}] Command Failed: ${e.message}`);
-          // Fallback for Power Off
+          console.error(`[${ip}] Gagal Eksekusi: ${e.message}`);
+          // Fallback Power Off
           if (action === "POWER_OFF" || action === "OFF") {
-            console.log(`[${ip}] Retrying Power Toggle...`);
+            console.log(`[${ip}] Mencoba alternatif Power Toggle...`);
             exec(`adb -s ${ip}:5555 shell input keyevent 26`);
           }
         } else {
-          console.log(`[${ip}] Executed ${action}`);
+          console.log(`[${ip}] Berhasil: ${action}`);
         }
       });
     }
