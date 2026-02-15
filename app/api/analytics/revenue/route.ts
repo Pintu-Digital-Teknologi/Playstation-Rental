@@ -10,26 +10,42 @@ export async function GET(request: NextRequest) {
     }
 
     const db = await getDatabase();
-
-    // Get date range from query params
     const searchParams = request.nextUrl.searchParams;
-    const daysParam = searchParams.get("days") || "30";
-    const days = parseInt(daysParam);
 
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - days);
+    // Date Filtering Logic
+    let startDate: Date;
+    let endDate: Date = new Date(); // Default to now
+
+    const fromParam = searchParams.get("from");
+    const toParam = searchParams.get("to");
+    const daysParam = searchParams.get("days");
+
+    if (fromParam) {
+      startDate = new Date(fromParam);
+      if (toParam) {
+        endDate = new Date(toParam);
+        // Set end date to end of day if it's the same or effectively the "to" date
+        endDate.setHours(23, 59, 59, 999);
+      }
+    } else {
+      const days = parseInt(daysParam || "30");
+      startDate = new Date();
+      startDate.setDate(startDate.getDate() - days);
+    }
+
+    // Ensure startDate is at start of day
+    startDate.setHours(0, 0, 0, 0);
+
+    const dateMatch = {
+      status: "paid",
+      paidDate: { $gte: startDate, $lte: endDate },
+    };
 
     // Revenue by date
-    // Revenue by date with Add-on split
     const revenueByDate = await db
       .collection("payments")
       .aggregate([
-        {
-          $match: {
-            status: "paid",
-            paidDate: { $gte: startDate },
-          },
-        },
+        { $match: dateMatch },
         {
           $lookup: {
             from: "rentals",
@@ -51,19 +67,33 @@ export async function GET(request: NextRequest) {
             count: { $sum: 1 },
           },
         },
-        {
-          $sort: { _id: 1 },
-        },
+        { $sort: { _id: 1 } },
       ])
       .toArray();
 
-    // Top Selling Add-ons (Food & Beverage)
+    // Payment Method Analysis
+    const paymentMethods = await db
+      .collection("payments")
+      .aggregate([
+        { $match: dateMatch },
+        {
+          $group: {
+            _id: { $ifNull: ["$paymentMethod", "unknown"] },
+            count: { $sum: 1 },
+            revenue: { $sum: "$amount" },
+          },
+        },
+        { $sort: { revenue: -1 } },
+      ])
+      .toArray();
+
+    // Top Selling Add-ons
     const popularAddOns = await db
       .collection("rentals")
       .aggregate([
         {
           $match: {
-            createdAt: { $gte: startDate },
+            createdAt: { $gte: startDate, $lte: endDate },
             status: "completed",
             addOns: { $exists: true, $ne: [] },
           },
@@ -81,13 +111,13 @@ export async function GET(request: NextRequest) {
       ])
       .toArray();
 
-    // TV utilization (Only completed rentals for accurate duration calculation)
+    // TV utilization
     const tvUtilization = await db
       .collection("rentals")
       .aggregate([
         {
           $match: {
-            createdAt: { $gte: startDate },
+            createdAt: { $gte: startDate, $lte: endDate },
             status: "completed",
           },
         },
@@ -96,9 +126,7 @@ export async function GET(request: NextRequest) {
             _id: "$tvId",
             totalDurationMs: { $sum: "$durationMs" },
             rentalCount: { $sum: 1 },
-            revenue: {
-              $sum: "$totalPrice", // Revenue is tracked in rentals too, though payments is source of truth for "Paid" revenue.
-            },
+            revenue: { $sum: "$totalPrice" },
           },
         },
         {
@@ -109,31 +137,27 @@ export async function GET(request: NextRequest) {
             as: "tv",
           },
         },
-        {
-          $unwind: "$tv",
-        },
+        { $unwind: "$tv" },
         {
           $project: {
             tvId: "$_id",
             tvName: "$tv.name",
-            totalHours: { $divide: ["$totalDurationMs", 3600000] }, // Convert ms to hours
+            totalHours: { $divide: ["$totalDurationMs", 3600000] },
             rentalCount: 1,
             revenue: 1,
           },
         },
-        {
-          $sort: { revenue: -1 },
-        },
+        { $sort: { revenue: -1 } },
       ])
       .toArray();
 
-    // Peak Hours Analysis (0-23) - Include Active & Completed
+    // Peak Hours Analysis
     const peakHours = await db
       .collection("rentals")
       .aggregate([
         {
           $match: {
-            createdAt: { $gte: startDate },
+            createdAt: { $gte: startDate, $lte: endDate },
             status: { $in: ["active", "completed"] },
           },
         },
@@ -148,19 +172,17 @@ export async function GET(request: NextRequest) {
             count: { $sum: 1 },
           },
         },
-        {
-          $sort: { _id: 1 },
-        },
+        { $sort: { _id: 1 } },
       ])
       .toArray();
 
-    // Rental Type Distribution - Include Active & Completed
+    // Rental Type Distribution
     const rentalTypes = await db
       .collection("rentals")
       .aggregate([
         {
           $match: {
-            createdAt: { $gte: startDate },
+            createdAt: { $gte: startDate, $lte: endDate },
             status: { $in: ["active", "completed"] },
           },
         },
@@ -168,7 +190,7 @@ export async function GET(request: NextRequest) {
           $group: {
             _id: "$type",
             count: { $sum: 1 },
-            revenue: { $sum: "$totalPrice" }, // Note: Active rentals might have provisional price, but for type distribution count is key.
+            revenue: { $sum: "$totalPrice" },
           },
         },
       ])
@@ -185,20 +207,25 @@ export async function GET(request: NextRequest) {
     );
     const totalRentals = await db
       .collection("rentals")
-      .countDocuments({ createdAt: { $gte: startDate } });
+      .countDocuments({ createdAt: { $gte: startDate, $lte: endDate } });
+
+    // Calculate days diff for average
+    const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) || 1;
 
     return NextResponse.json({
       summary: {
         totalRevenue,
         totalAddOnRevenue,
         totalRentals,
-        averageRevenuePerDay: totalRevenue / days,
+        averageRevenuePerDay: totalRevenue / diffDays,
       },
       revenueByDate,
       tvUtilization,
       peakHours,
       rentalTypes,
       popularAddOns,
+      paymentMethods,
     });
   } catch (error) {
     console.error("Error fetching analytics:", error);

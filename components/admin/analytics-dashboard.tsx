@@ -1,5 +1,4 @@
 "use client";
-
 import { useState, useEffect } from "react";
 import {
   Card,
@@ -15,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import {
   AreaChart,
   Area,
@@ -34,14 +34,22 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Loader2,
   DollarSign,
-  Clock,
   TrendingUp,
   Activity,
   Tv,
   Utensils,
   ShoppingBag,
+  CalendarIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { format } from "date-fns";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { DateRange } from "react-day-picker";
 
 interface AnalyticsData {
   summary: {
@@ -76,10 +84,12 @@ interface AnalyticsData {
     quantity: number;
     revenue: number;
   }>;
+  paymentMethods: Array<{
+    _id: string;
+    count: number;
+    revenue: number;
+  }>;
 }
-
-// ... Keep existing constants or color maps if any, but ensure Imports are top level which I can't do in overwrite chunk easily.
-// Be careful with replacing the whole file vs chunk. I'll use big chunk.
 
 const COLORS = [
   "#3b82f6",
@@ -91,20 +101,36 @@ const COLORS = [
   "#14b8a6",
 ];
 
+const PIE_COLORS = ["#10b981", "#3b82f6", "#f59e0b", "#ef4444"];
+
 export function AnalyticsDashboard() {
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [days, setDays] = useState("30");
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+    from: new Date(new Date().setDate(new Date().getDate() - 30)),
+    to: new Date(),
+  });
 
   useEffect(() => {
     fetchAnalytics();
-  }, [days]);
+  }, [days, dateRange]);
 
   const fetchAnalytics = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/analytics/revenue?days=${days}`);
+      let query = "";
+      if (days === "custom" && dateRange?.from) {
+        query = `?from=${dateRange.from.toISOString()}`;
+        if (dateRange.to) {
+          query += `&to=${dateRange.to.toISOString()}`;
+        }
+      } else {
+        query = `?days=${days}`;
+      }
+
+      const response = await fetch(`/api/analytics/revenue${query}`);
       if (!response.ok) throw new Error("Failed to fetch analytics");
       const data = await response.json();
       setData(data);
@@ -156,12 +182,11 @@ export function AnalyticsDashboard() {
     };
   });
 
-  // Prepare Rental Types Data
-  const rentalTypeData =
-    data.rentalTypes?.map((type) => ({
-      name: type._id === "hourly" ? "Hourly Rental" : "Regular/Packet",
-      value: type.count,
-      revenue: type.revenue,
+  const paymentMethodData =
+    data.paymentMethods?.map((pm) => ({
+      name: pm._id.charAt(0).toUpperCase() + pm._id.slice(1),
+      value: pm.revenue,
+      count: pm.count,
     })) || [];
 
   // Flatten revenue data for stack chart (revenue = total, we need base rental = total - addons)
@@ -180,20 +205,62 @@ export function AnalyticsDashboard() {
             Period Overview
           </h2>
           <p className="text-sm text-muted-foreground">
-            Analyze business performance over the last {days} days
+            Analyze business performance
           </p>
         </div>
-        <Select value={days} onValueChange={setDays}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="7">Last 7 Days</SelectItem>
-            <SelectItem value="30">Last 30 Days</SelectItem>
-            <SelectItem value="90">Last Quarter</SelectItem>
-            <SelectItem value="365">Last Year</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2">
+          <Select value={days} onValueChange={setDays}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7">Last 7 Days</SelectItem>
+              <SelectItem value="30">Last 30 Days</SelectItem>
+              <SelectItem value="90">Last Quarter</SelectItem>
+              <SelectItem value="365">Last Year</SelectItem>
+              <SelectItem value="custom">Custom Range</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {days === "custom" && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  id="date"
+                  variant={"outline"}
+                  className={cn(
+                    "w-[260px] justify-start text-left font-normal",
+                    !dateRange && "text-muted-foreground",
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {dateRange?.from ? (
+                    dateRange.to ? (
+                      <>
+                        {format(dateRange.from, "LLL dd, y")} -{" "}
+                        {format(dateRange.to, "LLL dd, y")}
+                      </>
+                    ) : (
+                      format(dateRange.from, "LLL dd, y")
+                    )
+                  ) : (
+                    <span>Pick a date</span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="end">
+                <Calendar
+                  initialFocus
+                  mode="range"
+                  defaultMonth={dateRange?.from}
+                  selected={dateRange}
+                  onSelect={setDateRange}
+                  numberOfMonths={2}
+                />
+              </PopoverContent>
+            </Popover>
+          )}
+        </div>
       </div>
 
       {/* Summary Stats Cards */}
@@ -230,7 +297,7 @@ export function AnalyticsDashboard() {
             <p className="text-xs text-muted-foreground mt-1">
               {(
                 ((data.summary.totalAddOnRevenue || 0) /
-                  data.summary.totalRevenue) *
+                  Math.max(data.summary.totalRevenue, 1)) *
                 100
               ).toFixed(1)}
               % of total revenue
@@ -361,7 +428,7 @@ export function AnalyticsDashboard() {
           </CardContent>
         </Card>
 
-        {/* Popular Add-ons List (Replacing Pie Chart or alongside) */}
+        {/* Popular Add-ons List */}
         <Card className="col-span-1 lg:col-span-3 hover:shadow-md transition-shadow duration-200">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -411,7 +478,7 @@ export function AnalyticsDashboard() {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Peak Hours Bar Chart */}
         <Card className="hover:shadow-md transition-shadow duration-200">
           <CardHeader>
@@ -456,6 +523,69 @@ export function AnalyticsDashboard() {
                 />
               </BarChart>
             </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        {/* Payment Methods Chart */}
+        <Card className="hover:shadow-md transition-shadow duration-200">
+          <CardHeader>
+            <CardTitle>Payment Methods</CardTitle>
+            <CardDescription>Revenue share by payment type</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[300px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={paymentMethodData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={80}
+                    fill="#8884d8"
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {paymentMethodData.map((entry, index) => (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={PIE_COLORS[index % PIE_COLORS.length]}
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value: number) => formatCurrency(value)}
+                  />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="mt-4 space-y-2">
+              {paymentMethodData.map((item, idx) => (
+                <div
+                  key={idx}
+                  className="flex justify-between text-sm border-b pb-1 last:border-0"
+                >
+                  <span className="flex items-center gap-2">
+                    <div
+                      className="w-3 h-3 rounded-full"
+                      style={{
+                        backgroundColor: PIE_COLORS[idx % PIE_COLORS.length],
+                      }}
+                    />
+                    {item.name}
+                  </span>
+                  <div className="text-right">
+                    <span className="font-medium mr-2">
+                      {formatCurrency(item.value)}
+                    </span>
+                    <span className="text-muted-foreground text-xs">
+                      ({item.count} txns)
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
 

@@ -463,6 +463,7 @@ export default function ShiftManagementPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>Start Time</TableHead>
                 <TableHead>Close Time</TableHead>
                 <TableHead>Cashier</TableHead>
                 <TableHead>Total Transactions</TableHead>
@@ -483,6 +484,9 @@ export default function ShiftManagementPage() {
               ) : (
                 shiftsHistory.map((shift) => (
                   <TableRow key={shift._id}>
+                    <TableCell>
+                      {new Date(shift.startTime).toLocaleString()}
+                    </TableCell>
                     <TableCell>
                       {shift.endTime
                         ? new Date(shift.endTime).toLocaleString()

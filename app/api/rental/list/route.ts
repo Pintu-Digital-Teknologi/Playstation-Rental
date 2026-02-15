@@ -19,6 +19,13 @@ export async function GET(request: NextRequest) {
       query.status = status;
     }
 
+    const page = parseInt(searchParams.get("page") || "1", 10);
+    const limit = parseInt(searchParams.get("limit") || "10", 10);
+    const skip = (page - 1) * limit;
+
+    const totalRentals = await db.collection("rentals").countDocuments(query);
+    const totalPages = Math.ceil(totalRentals / limit);
+
     const rentals = await db
       .collection("rentals")
       .aggregate([
@@ -39,10 +46,16 @@ export async function GET(request: NextRequest) {
         {
           $sort: { createdAt: -1 },
         },
+        {
+          $skip: skip,
+        },
+        {
+          $limit: limit,
+        },
       ])
       .toArray();
 
-    return NextResponse.json({ rentals });
+    return NextResponse.json({ rentals, totalPages, currentPage: page });
   } catch (error) {
     console.error("Error fetching rentals:", error);
     return NextResponse.json(

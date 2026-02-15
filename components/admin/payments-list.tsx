@@ -62,6 +62,8 @@ export function PaymentsList() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
   // State for Update Dialog
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
@@ -77,14 +79,16 @@ export function PaymentsList() {
 
   useEffect(() => {
     fetchPayments();
-  }, []);
+  }, [page]);
 
   const fetchPayments = async () => {
+    setLoading(true);
     try {
-      const response = await fetch("/api/payment/list");
+      const response = await fetch(`/api/payment/list?page=${page}&limit=10`);
       if (!response.ok) throw new Error("Failed to fetch payments");
       const data = await response.json();
       setPayments(data.payments);
+      setTotalPages(data.pagination?.totalPages || 1);
       setError("");
     } catch (err) {
       setError("Failed to load payments");
@@ -275,6 +279,30 @@ export function PaymentsList() {
                   ))}
                 </TableBody>
               </Table>
+            </div>
+          )}
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-end space-x-2 py-4">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+              >
+                Previous
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                Page {page} of {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+              >
+                Next
+              </Button>
             </div>
           )}
         </CardContent>
