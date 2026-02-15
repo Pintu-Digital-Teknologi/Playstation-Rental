@@ -17,20 +17,21 @@ export async function GET(request: NextRequest) {
         let timeRemaining = null;
         let accessKey = null;
         let status = tv.status;
+        let isOnline = tv.isOnline;
 
-        // 1. Use Status from DB (Synced by Bridge)
-        const isOnline = tv.isOnline; // Trust the DB
-
-        // Skip VPS-side ADB check
-        // const tvStatus = await getTVStatus(tv.ipAddress);
-        // ... update removed ...
-
-        // Override status jika TV mati
-        if (!isOnline && status !== "maintenance") {
-          status = "offline";
+        // 1. Liveness Check (Synced with admin logic)
+        if (tv.lastChecked) {
+          const lastCheckedTime = new Date(tv.lastChecked).getTime();
+          const now = new Date().getTime();
+          if (now - lastCheckedTime > 30000) {
+            // 30 seconds threshold
+            isOnline = false;
+          }
+        } else {
+          isOnline = false;
         }
 
-        // Check active rental
+        // 2. Check active rental and handle expiry
         if (tv.currentRentalId && status === "in-use") {
           const rental = await db
             .collection("rentals")
@@ -39,14 +40,50 @@ export async function GET(request: NextRequest) {
           if (rental && rental.status === "active") {
             const now = new Date();
             const startTime = new Date(rental.startTime);
-            const endTime = new Date(startTime.getTime() + rental.durationMs);
 
-            if (now < endTime) {
-              const remainingMs = endTime.getTime() - now.getTime();
-              timeRemaining = Math.floor(remainingMs / 1000); // in seconds
+            if (rental.type === "hourly" && rental.durationMs) {
+              const endTime = new Date(startTime.getTime() + rental.durationMs);
+
+              if (now > endTime) {
+                // Rental Expired - Update DB (Side-effect to keep sync)
+                await db.collection("rentals").updateOne(
+                  { _id: rental._id },
+                  {
+                    $set: {
+                      status: "completed",
+                      endTime,
+                      updatedAt: new Date(),
+                    },
+                  },
+                );
+
+                await db.collection("tvs").updateOne(
+                  { _id: tv._id },
+                  {
+                    $set: { status: "available", lastChecked: new Date() },
+                    $unset: { currentRentalId: "", timerId: "" },
+                  },
+                );
+
+                // Update local state for response
+                status = "available";
+              } else {
+                // Active Hourly Rental
+                const remainingMs = endTime.getTime() - now.getTime();
+                timeRemaining = Math.floor(remainingMs / 1000); // in seconds
+                accessKey = rental.publicAccessKey;
+              }
+            } else if (rental.type === "regular") {
+              // Regular rental (count up) - always active until manually stopped
+              // accessKey might be needed?
               accessKey = rental.publicAccessKey;
             }
           }
+        }
+
+        // Override status if TV is offline (and not maintenance which might be intentional)
+        if (!isOnline && status !== "maintenance") {
+          status = "offline";
         }
 
         return {

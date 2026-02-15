@@ -6,15 +6,37 @@ import bcrypt from "bcryptjs";
 
 export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get("page") || "1");
+    const limit = parseInt(searchParams.get("limit") || "10");
+    const skip = (page - 1) * limit;
+
     const db = await getDatabase();
-    // Fetch completed shifts for history
-    const shifts = await db
-      .collection("shifts")
-      .find({ status: "completed" })
+    const collection = db.collection("shifts");
+
+    const query = { status: "completed" };
+
+    // Get total count for pagination
+    const total = await collection.countDocuments(query);
+    const totalPages = Math.ceil(total / limit);
+
+    // Fetch completed shifts for history with pagination
+    const shifts = await collection
+      .find(query)
       .sort({ endTime: -1 })
+      .skip(skip)
+      .limit(limit)
       .toArray();
 
-    return NextResponse.json(shifts);
+    return NextResponse.json({
+      data: shifts,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages,
+      },
+    });
   } catch (error) {
     console.error("Error fetching shifts:", error);
     return NextResponse.json(

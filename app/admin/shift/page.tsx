@@ -33,6 +33,8 @@ import {
   Receipt,
   Eye,
   User,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -91,6 +93,12 @@ export default function ShiftManagementPage() {
     [],
   );
   const [loadingDetails, setLoadingDetails] = useState(false);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 1,
+  });
 
   // Password Dialog State
   const [password, setPassword] = useState("");
@@ -124,11 +132,17 @@ export default function ShiftManagementPage() {
     }
   };
 
-  const fetchHistory = async () => {
-    const res = await fetch("/api/shift");
+  const fetchHistory = async (page = 1) => {
+    const res = await fetch(`/api/shift?page=${page}&limit=10`);
     if (res.ok) {
-      const data = await res.json();
-      setShiftsHistory(data);
+      const responseData = await res.json();
+      if (responseData.data && responseData.pagination) {
+        setShiftsHistory(responseData.data);
+        setPagination(responseData.pagination);
+      } else {
+        // Fallback for array response if API hasn't updated yet
+        setShiftsHistory(Array.isArray(responseData) ? responseData : []);
+      }
     }
   };
 
@@ -513,6 +527,35 @@ export default function ShiftManagementPage() {
             </TableBody>
           </Table>
         </CardContent>
+        {(shiftsHistory.length > 0 ||
+          pagination.totalPages > 1 ||
+          pagination.page > 1) && (
+          <div className="flex items-center justify-end space-x-2 p-4 border-t">
+            <div className="flex-1 text-sm text-muted-foreground">
+              Page {pagination.page} of {Math.max(pagination.totalPages, 1)}
+            </div>
+            <div className="space-x-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fetchHistory(pagination.page - 1)}
+                disabled={pagination.page <= 1}
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Previous
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fetchHistory(pagination.page + 1)}
+                disabled={pagination.page >= pagination.totalPages}
+              >
+                Next
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
       </Card>
 
       {/* Details Dialog */}
