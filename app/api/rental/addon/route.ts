@@ -1,4 +1,4 @@
-import clientPromise from "@/lib/db";
+import { getDatabase } from "@/lib/db";
 import { MenuItem, Rental } from "@/lib/types";
 import { ObjectId } from "mongodb";
 import { NextResponse } from "next/server";
@@ -20,8 +20,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const client = await clientPromise;
-    const db = client.db("playstation");
+    const db = await getDatabase();
 
     // 1. Get current rental items details from DB to get fresh prices
     const menuItemIds = items.map((i) => new ObjectId(i.menuItemId));
@@ -30,9 +29,12 @@ export async function POST(request: Request) {
       .find({ _id: { $in: menuItemIds } })
       .toArray();
 
-    const menuMap = new Map(
-      menuItems.map((item) => [item._id?.toString(), item]),
-    );
+    const menuMap = new Map<string, MenuItem>();
+    menuItems.forEach((item) => {
+      if (item._id) {
+        menuMap.set(item._id.toString(), item);
+      }
+    });
 
     // 2. Prepare new add-ons array
     type RentalAddOn = NonNullable<Rental["addOns"]>[number];

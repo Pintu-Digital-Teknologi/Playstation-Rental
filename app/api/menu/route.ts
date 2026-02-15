@@ -1,12 +1,11 @@
-import clientPromise from "@/lib/db";
+import { getDatabase } from "@/lib/db";
 import { MenuItem } from "@/lib/types";
 import { ObjectId } from "mongodb";
 import { NextResponse } from "next/server";
 
 export async function GET() {
   try {
-    const client = await clientPromise;
-    const db = client.db("playstation");
+    const db = await getDatabase();
 
     // Fetch all menu items sorted by category and name
     const menuItems = await db
@@ -38,8 +37,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const client = await clientPromise;
-    const db = client.db("playstation");
+    const db = await getDatabase();
 
     const newMenuItem: MenuItem = {
       name,
@@ -77,8 +75,7 @@ export async function PUT(request: Request) {
       );
     }
 
-    const client = await clientPromise;
-    const db = client.db("playstation");
+    const db = await getDatabase();
 
     const updateData: any = {
       updatedAt: new Date(),
@@ -122,8 +119,7 @@ export async function DELETE(request: Request) {
       );
     }
 
-    const client = await clientPromise;
-    const db = client.db("playstation");
+    const db = await getDatabase();
 
     const result = await db
       .collection("menu_items")
