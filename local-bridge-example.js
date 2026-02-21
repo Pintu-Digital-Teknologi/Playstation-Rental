@@ -132,31 +132,38 @@ client.on("error", (error) => {
 
 /**
  * Mengirim pesan Toast/Popup.
- * KODE DI BAWAH ADALAH CONTOH UNTUK ANDROID TV YANG TERINSTALL "PiPup"
- * https://github.com/rogro82/PiPup
+ * KODE DI BAWAH MENGGUNAKAN TVOVERLAY VIA HTTP API
+ * DAN SECARA OTOMATIS MENGIRIMKAN ADB COMMAND UNTUK IZIN (SYSTEM_ALERT_WINDOW)
  */
 async function sendToastToTV(ip, messageText) {
   try {
-    // Port 7979 adalah port default aplikasi PiPup
+    console.log(`🛡️ Granting TvOverlay permission via ADB for ${ip}...`);
+    // 1. Pastikan Connect via ADB
+    await execPromise(`adb connect ${ip}`);
+    // 2. Kirim command perizinan "Display over other apps" secara otomatis
+    await execPromise(
+      `adb -s ${ip}:5555 shell appops set com.tabdeveloper.tvoverlay SYSTEM_ALERT_WINDOW allow`,
+    );
+
+    // 3. Kirim pesan aktual via API TvOverlay (Port default 51221 / 7676)
+    console.log(`✉️ Sending HTTP payload to TvOverlay API...`);
     const response = await axios.post(
-      `http://${ip}:7979/notify`,
+      `http://${ip}:5001`,
       {
         message: messageText,
-        duration: 10, // Muncul 10 Detik
-        position: 1, // 1: Center, 2: Bottom, dll tergantung apk
-        backgroundColor: "#b91c1c", // Merah alert
+        duration: 10,
+        position: "BOTTOM_RIGHT", // Sesuaikan posisi
+        bgcolor: "#b91c1c",
         title: "Playstation Rental Admin",
-        titleColor: "#ffffff",
       },
       { timeout: 3000 },
     );
 
-    console.log(`✅ Message displayed successfully on ${ip}`);
+    console.log(`✅ Message displayed successfully on ${ip} via TvOverlay`);
   } catch (error) {
     console.error(
-      `❌ Failed to send message to ${ip}. (Is PiPup installed & running?)`,
+      `❌ Failed to send message to ${ip}. (Is TvOverlay installed & ADB Enabled?) \nError: ${error.message}`,
     );
-    // Fallback: Bisa tambahkan Audio Text-to-Speech via bluetooth jika TV nge-block.
   }
 }
 

@@ -116,7 +116,7 @@ client.on("message", (topic, message) => {
           });
         }
       } else {
-        executeCommand(payload.ip, payload.action);
+        executeCommand(payload.ip, payload.action, payload.data);
       }
     }
   } catch (e) {
@@ -194,7 +194,7 @@ setInterval(syncStatus, 10000);
 syncStatus();
 
 // === EXECUTE COMMAND ===
-function executeCommand(ip, action) {
+function executeCommand(ip, action, actionData) {
   console.log(`[ADB] Eksekusi ${action} ke TV ${ip}...`);
 
   exec(`adb connect ${ip}`, (error) => {
@@ -228,6 +228,51 @@ function executeCommand(ip, action) {
       case "HOME":
         adbCmd = "input keyevent 3";
         break;
+      case "SHOW_MESSAGE":
+        // Pengecualian: SHOW_MESSAGE tidak menggunakan input keyevent adb, tapi memakai HTTP POST (TvOverlay)
+        // Sebelumnya, garansi permission via ADB
+        const msgText = actionData?.message || "Pesan dari Admin";
+        console.log(`[${ip}] Mengatur Izin Overlay...`);
+        exec(
+          `adb -s ${ip}:5555 shell appops set com.tabdeveloper.tvoverlay SYSTEM_ALERT_WINDOW allow`,
+          () => {
+            console.log(`[${ip}] Mengirim HTTP Pesan: "${msgText}"`);
+            // Gunakan request HTTP natif bawaan Node.js agar tidak perlu install axios di script production lama
+            const http = require("http");
+            const data = JSON.stringify({
+              message: msgText,
+              duration: 10,
+              position: "BOTTOM_RIGHT",
+              bgcolor: "#b91c1c",
+              title: "Playstation Rental Admin",
+            });
+            const req = http.request(
+              {
+                hostname: ip,
+                port: 5001, // Port aplikasi Companion TvOverlay
+                path: "/",
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Content-Length": Buffer.byteLength(data),
+                },
+              },
+              (res) => {
+                console.log(
+                  `[${ip}] Pesan TvOverlay Terkirim. Status: ${res.statusCode}`,
+                );
+              },
+            );
+            req.on("error", (e) => {
+              console.error(
+                `[${ip}] Gagal Mengirim Pesan TvOverlay: ${e.message}`,
+              );
+            });
+            req.write(data);
+            req.end();
+          },
+        );
+        return; // Selesai untuk case ini, tidak lanjut ke eksekusi adbCmd
       default:
         console.log(`[ADB] Action tidak dikenal: ${action}`);
         return;
