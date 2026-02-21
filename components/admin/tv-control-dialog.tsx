@@ -37,6 +37,7 @@ export function TVControlDialog({
   const [error, setError] = useState("");
   const [timerMinutes, setTimerMinutes] = useState("60");
   const [successMessage, setSuccessMessage] = useState("");
+  const [message, setMessage] = useState("");
 
   const handleAction = async (action: string) => {
     setError("");
@@ -46,6 +47,7 @@ export function TVControlDialog({
     try {
       const result = await controlTVAction(tv._id, action, {
         timerMinutes: parseInt(timerMinutes),
+        message: action === "show-message" ? message : undefined,
       });
 
       if (result.error) {
@@ -153,6 +155,29 @@ export function TVControlDialog({
             >
               Extend Timer
             </Button>
+          </div>
+
+          <div className="space-y-2 mt-4 pt-4 border-t">
+            <Label htmlFor="message">On-Screen Message</Label>
+            <div className="flex gap-2">
+              <Input
+                id="message"
+                placeholder="Type a message to display..."
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                disabled={loading}
+              />
+              <Button
+                variant="secondary"
+                onClick={() => handleAction("show-message")}
+                disabled={loading || !message.trim()}
+              >
+                Send
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Displays a notification overlay on the TV screen.
+            </p>
           </div>
         </div>
       </DialogContent>

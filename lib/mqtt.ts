@@ -38,7 +38,8 @@ export type TVAction =
   | "SLEEP_TIMER"
   | "OFF"
   | "ON"
-  | "WOL";
+  | "WOL"
+  | "SHOW_MESSAGE";
 
 /**
  * Publish perintah ke Broker MQTT agar diambil oleh Local Bridge

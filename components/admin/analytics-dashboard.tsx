@@ -112,10 +112,13 @@ export function AnalyticsDashboard() {
     from: new Date(new Date().setDate(new Date().getDate() - 30)),
     to: new Date(),
   });
+  const [singleDate, setSingleDate] = useState<Date | undefined>(new Date());
 
   useEffect(() => {
+    if (days === "custom" && !dateRange?.from) return;
+    if (days === "single" && !singleDate) return;
     fetchAnalytics();
-  }, [days, dateRange]);
+  }, [days, dateRange, singleDate]);
 
   const fetchAnalytics = async () => {
     setLoading(true);
@@ -126,6 +129,9 @@ export function AnalyticsDashboard() {
         if (dateRange.to) {
           query += `&to=${dateRange.to.toISOString()}`;
         }
+      } else if (days === "single" && singleDate) {
+        const isoDate = singleDate.toISOString();
+        query = `?from=${isoDate}&to=${isoDate}`;
       } else {
         query = `?days=${days}`;
       }
@@ -208,9 +214,9 @@ export function AnalyticsDashboard() {
             Analyze business performance
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
           <Select value={days} onValueChange={setDays}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-full sm:w-[180px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -218,9 +224,40 @@ export function AnalyticsDashboard() {
               <SelectItem value="30">Last 30 Days</SelectItem>
               <SelectItem value="90">Last Quarter</SelectItem>
               <SelectItem value="365">Last Year</SelectItem>
-              <SelectItem value="custom">Custom Range</SelectItem>
+              <SelectItem value="single">Single Day</SelectItem>
+              <SelectItem value="custom">Date Range</SelectItem>
             </SelectContent>
           </Select>
+
+          {days === "single" && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant={"outline"}
+                  className={cn(
+                    "w-full sm:w-[240px] justify-start text-left font-normal",
+                    !singleDate && "text-muted-foreground",
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {singleDate ? (
+                    format(singleDate, "PPP")
+                  ) : (
+                    <span>Pick a date</span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="end">
+                <Calendar
+                  mode="single"
+                  selected={singleDate}
+                  onSelect={setSingleDate}
+                  required
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+          )}
 
           {days === "custom" && (
             <Popover>
@@ -229,7 +266,7 @@ export function AnalyticsDashboard() {
                   id="date"
                   variant={"outline"}
                   className={cn(
-                    "w-[260px] justify-start text-left font-normal",
+                    "w-full sm:w-[260px] justify-start text-left font-normal",
                     !dateRange && "text-muted-foreground",
                   )}
                 >
